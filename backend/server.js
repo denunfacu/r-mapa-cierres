@@ -152,7 +152,10 @@ const limpiarNum = (val) => {
 // --- FUNCIÓN PARA LIMPIAR BOOLEANOS ---
 // Asegura que los checkboxes sean 0 o 1
 const limpiarBool = (val) => {
-    return val ? 1 : 0;
+    // Si viene como string "0" o "1" desde FormData, convertir a int
+    if (val === "0" || val === 0 || !val || val === false) return 0;
+    if (val === "1" || val === 1 || val === true) return 1;
+    return 0;
 };
 
 // --- MIDDLEWARES ---

@@ -14,6 +14,30 @@ function formatPrice(price) {
     }).format(price).replace('ARS', 'USD');
 }
 
+// Función para formatear números en tiempo real en inputs (con separadores de miles)
+function formatNumberInput(input) {
+    if (!input) return;
+    
+    // Guardar el valor sin formatear en un atributo oculto
+    const hiddenField = document.createElement('input');
+    hiddenField.type = 'hidden';
+    hiddenField.id = input.id + '_clean';
+    input.parentNode.insertBefore(hiddenField, input.nextSibling);
+    
+    input.addEventListener('input', () => {
+        let val = input.value.replace(/\D/g, '');
+        hiddenField.value = val; // Guardar valor limpio
+        
+        if (val) {
+            val = new Intl.NumberFormat('es-AR', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(parseInt(val));
+        }
+        input.value = val;
+    });
+}
+
 var tokenSeguro = localStorage.getItem('token');
 var datosUsuario = { id: null, rol: 'user', permiso: 'ver' };
 let todosLosCierres = []; 
@@ -66,6 +90,9 @@ document.getElementById('btn-abrir-formulario').onclick = () => {
         return;
     }
     modalForm.style.display = 'flex';
+    // Inicializar formateo de precios
+    formatNumberInput(document.getElementById('precio_publicacion'));
+    formatNumberInput(document.getElementById('precio_cierre'));
 };
 document.getElementById('cancelar-form').onclick = () => modalForm.style.display = 'none';
 document.getElementById('cerrar-detalle').onclick = () => sidebar.classList.remove('active');
@@ -99,7 +126,8 @@ function crearPin(cierre) {
         map.setView([cierre.lat, cierre.lng], 16, { animate: true });
 
         // 2. Preparación de datos para mostrar
-        const imgHtml = cierre.foto ? `<img src="${API_URL}${cierre.foto}" class="foto-portada" loading="lazy">` : '';
+        // La foto ya viene como URL absoluto de Cloudinary, no necesita prepending
+        const imgHtml = cierre.foto ? `<img src="${cierre.foto}" class="foto-portada" loading="lazy">` : '';
         
         // Función auxiliar para mostrar SI/NO con color
         const siNo = (val) => (val == 1 || val == true || val === "true") 
@@ -166,9 +194,15 @@ document.getElementById("guardar").onclick = async () => {
 
     const formData = new FormData();
     
-    // Recolección de datos
-    const campos = ['direccion','barrio','localidad','precio_publicacion','precio_cierre','tipo_propiedad','piso','disposicion','m2_cubiertos','m2_terreno','antiguedad','banios','cocheras','dormitorios','observaciones'];
+    // Recolección de datos - usar valores limpios para precios
+    const campos = ['direccion','barrio','localidad','tipo_propiedad','piso','disposicion','m2_cubiertos','m2_terreno','antiguedad','banios','cocheras','dormitorios','observaciones'];
     campos.forEach(c => formData.append(c, document.getElementById(c).value || ''));
+    
+    // Precios: usar los valores sin formatear si existen, sino el valor del input
+    const precioPubli = document.getElementById('precio_publicacion_clean')?.value || document.getElementById('precio_publicacion').value || '';
+    const precioCierre = document.getElementById('precio_cierre_clean')?.value || document.getElementById('precio_cierre').value || '';
+    formData.append('precio_publicacion', precioPubli);
+    formData.append('precio_cierre', precioCierre);
 
     // Checkboxes
     const checks = ['es_ph','credito','gas','cloacas','pavimento','pileta','amenities'];
