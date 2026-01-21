@@ -1,83 +1,133 @@
+require('dotenv').config();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const SECRET_KEY = process.env.SECRET_KEY || "facuautoriza";
 const fetch = require("node-fetch");
 const express = require("express");
 const cors = require("cors");
-const sqlite3 = require("sqlite3").verbose();
-const path = require("path");
+const { Pool } = require('pg');
+const cloudinary = require('cloudinary').v2;
 const multer = require("multer"); 
-const fs = require("fs");
+const path = require("path");
 const app = express();
 
-// Crear directorios necesarios si no existen
-const UPLOADS_DIR = process.env.UPLOADS_DIR || './uploads';
-if (!fs.existsSync(UPLOADS_DIR)) { fs.mkdirSync(UPLOADS_DIR, { recursive: true }); }
+// Configurar Cloudinary
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+// Configurar PostgreSQL (Neon)
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+});
+
+// Configurar Multer para memory storage (Cloudinary lo maneja)
+const storage = multer.memoryStorage();
+const upload = multer({ 
+    storage,
+    limits: { fileSize: 10 * 1024 * 1024 }
+});
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '../frontend')));
-app.use('/uploads', express.static(UPLOADS_DIR));
-
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, UPLOADS_DIR + '/'),
-    filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
-});
-const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
-
-const DB_PATH = process.env.DB_PATH || "./cierres.db";
-const db = new sqlite3.Database(DB_PATH);
-
 
 // --- INICIALIZACIÓN DE TABLAS ---
-db.serialize(() => {
-    db.run(`CREATE TABLE IF NOT EXISTS usuarios (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nombre TEXT, email TEXT UNIQUE, password TEXT,
-        rol TEXT DEFAULT 'user', permiso_nivel TEXT DEFAULT 'ver', 
-        estado TEXT DEFAULT 'pendiente', expira_en DATETIME DEFAULT NULL
-    )`);
+async function initDB() {
+    try {
+        // Tabla usuarios
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id SERIAL PRIMARY KEY,
+                nombre VARCHAR(255),
+                email VARCHAR(255) UNIQUE,
+                password VARCHAR(255),
+                rol VARCHAR(50) DEFAULT 'user',
+                permiso_nivel VARCHAR(50) DEFAULT 'ver',
+                estado VARCHAR(50) DEFAULT 'pendiente',
+                expira_en TIMESTAMP DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
 
-    db.run(`CREATE TABLE IF NOT EXISTS cierres (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, usuario_id INTEGER,
-        direccion TEXT, barrio TEXT, localidad TEXT, precio_publicacion INTEGER, precio_cierre INTEGER,
-        tipo_propiedad TEXT, es_ph INTEGER, piso TEXT, disposicion TEXT,
-        m2_cubiertos REAL, m2_terreno REAL,
-        antiguedad INTEGER, banios INTEGER, cocheras INTEGER, dormitorios INTEGER,
-        credito INTEGER, dias_mercado TEXT, gas INTEGER, cloacas INTEGER, pavimento INTEGER,
-        pileta INTEGER, amenities INTEGER, observaciones TEXT,
-        foto TEXT, lat REAL, lng REAL, creado_en DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
-    )`);
+        // Tabla cierres
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS cierres (
+                id SERIAL PRIMARY KEY,
+                usuario_id INTEGER REFERENCES usuarios(id),
+                direccion VARCHAR(255),
+                barrio VARCHAR(255),
+                localidad VARCHAR(255),
+                precio_publicacion DECIMAL,
+                precio_cierre DECIMAL,
+                tipo_propiedad VARCHAR(50),
+                es_ph INTEGER DEFAULT 0,
+                piso VARCHAR(50),
+                disposicion VARCHAR(50),
+                m2_cubiertos DECIMAL,
+                m2_terreno DECIMAL,
+                antiguedad INTEGER,
+                banios INTEGER,
+                cocheras INTEGER,
+                dormitorios INTEGER,
+                credito INTEGER DEFAULT 0,
+                dias_mercado VARCHAR(50),
+                gas INTEGER DEFAULT 0,
+                cloacas INTEGER DEFAULT 0,
+                pavimento INTEGER DEFAULT 0,
+                pileta INTEGER DEFAULT 0,
+                amenities INTEGER DEFAULT 0,
+                observaciones TEXT,
+                foto VARCHAR(500),
+                lat DECIMAL(10, 6),
+                lng DECIMAL(10, 6),
+                creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
 
-    db.run(`CREATE TABLE IF NOT EXISTS reportes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        usuario_id INTEGER,
-        nombre_usuario TEXT,
-        tipo TEXT,
-        mensaje TEXT,
-        creado_en DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
-    )`);
-});
+        // Tabla reportes
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS reportes (
+                id SERIAL PRIMARY KEY,
+                usuario_id INTEGER REFERENCES usuarios(id),
+                nombre_usuario VARCHAR(255),
+                tipo VARCHAR(50),
+                mensaje TEXT,
+                creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
 
-// --- CREAR USUARIO ADMIN AUTOMÁTICAMENTE (solo si no existe) ---
-db.serialize(() => {
-    db.get(`SELECT id FROM usuarios WHERE rol = 'admin'`, async (err, row) => {
-        if (!row) {
+        console.log("✅ Tablas verificadas/creadas");
+    } catch (err) {
+        console.error("❌ Error al inicializar BD:", err);
+    }
+}
+
+// Crear usuario admin automáticamente
+async function createAdminUser() {
+    try {
+        const result = await pool.query(`SELECT id FROM usuarios WHERE rol = 'admin'`);
+        if (result.rows.length === 0) {
             const adminEmail = "admin@inmobiliaria.local";
             const adminPass = await bcrypt.hash("AdminSecure2024!", 10);
-            db.run(
-                `INSERT INTO usuarios (nombre, email, password, estado, rol, permiso_nivel) VALUES (?, ?, ?, ?, ?, ?)`,
-                ["Administrador", adminEmail, adminPass, "activo", "admin", "cargar"],
-                (err) => {
-                    if (!err) console.log("✅ Usuario admin creado automáticamente");
-                }
+            await pool.query(
+                `INSERT INTO usuarios (nombre, email, password, estado, rol, permiso_nivel) 
+                 VALUES ($1, $2, $3, $4, $5, $6)`,
+                ["Administrador", adminEmail, adminPass, "activo", "admin", "cargar"]
             );
+            console.log("✅ Usuario admin creado automáticamente");
         }
-    });
-});
+    } catch (err) {
+        console.error("Error al crear admin:", err);
+    }
+}
+
+// Inicializar BD
+initDB().then(() => createAdminUser());
 
 // --- MIDDLEWARES ---
 function verificarToken(req, res, next) {
@@ -107,167 +157,245 @@ app.get('/admin-panel', (req, res) => res.sendFile(path.join(__dirname, '../fron
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, '../frontend/index.html')));
 
 // --- API USUARIOS ---
-app.post('/login', (req, res) => {
+app.post('/login', async (req, res) => {
     const { email, password } = req.body;
-    db.get(`SELECT * FROM usuarios WHERE email = ?`, [email], async (err, user) => {
+    try {
+        const result = await pool.query(`SELECT * FROM usuarios WHERE email = $1`, [email]);
+        const user = result.rows[0];
         if (!user) return res.status(401).json({ error: "Usuario no encontrado" });
         if (user.estado === 'pendiente') return res.status(403).json({ error: "Cuenta no aprobada" });
         const esValida = await bcrypt.compare(password, user.password);
         if (!esValida) return res.status(401).json({ error: "Contraseña incorrecta" });
-        const token = jwt.sign({ id: user.id, nombre: user.nombre, rol: user.rol, permiso_nivel: user.permiso_nivel }, SECRET_KEY, { expiresIn: '24h' });
+        const token = jwt.sign({ 
+            id: user.id, 
+            nombre: user.nombre, 
+            rol: user.rol, 
+            permiso_nivel: user.permiso_nivel 
+        }, SECRET_KEY, { expiresIn: '24h' });
         res.json({ token });
-    });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.post('/registrar', async (req, res) => {
     const { nombre, email, password } = req.body;
-    const hash = await bcrypt.hash(password, 10);
-    
-    // Todos los nuevos usuarios registrados quedan en pendiente de aprobación
-    db.run(
-        `INSERT INTO usuarios (nombre, email, password, estado, rol, permiso_nivel) VALUES (?, ?, ?, ?, ?, ?)`, 
-        [nombre, email, hash, 'pendiente', 'user', 'ver'], 
-        (err) => {
-            if (err) {
-                console.error("Error al registrar:", err);
-                return res.status(400).json({ error: "Email ya registrado" });
-            }
-            res.json({ message: "✅ Registrado - Aguardando aprobación del administrador" });
-        }
-    );
+    try {
+        const hash = await bcrypt.hash(password, 10);
+        await pool.query(
+            `INSERT INTO usuarios (nombre, email, password, estado, rol, permiso_nivel) 
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [nombre, email, hash, 'pendiente', 'user', 'ver']
+        );
+        res.json({ message: "✅ Registrado - Aguardando aprobación del administrador" });
+    } catch (err) {
+        res.status(400).json({ error: "Email ya registrado" });
+    }
 });
 
 // --- API ADMIN ---
-
-// 1. Obtener lista de usuarios
-app.get('/admin/usuarios', soloAdmin, (req, res) => {
-    const sql = `SELECT id, nombre, email, estado, permiso_nivel, rol, expira_en,
-        (SELECT COUNT(*) FROM cierres WHERE usuario_id = usuarios.id) as total_cierres FROM usuarios`;
-    db.all(sql, [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows || []);
-    });
+app.get('/admin/usuarios', soloAdmin, async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                usuarios.id, usuarios.nombre, usuarios.email, usuarios.estado, 
+                usuarios.permiso_nivel, usuarios.rol, usuarios.expira_en,
+                COUNT(cierres.id) as total_cierres
+            FROM usuarios
+            LEFT JOIN cierres ON cierres.usuario_id = usuarios.id
+            GROUP BY usuarios.id
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
-// 2. MODO ESPÍA 
-app.get('/admin/cierres-usuario/:id', soloAdmin, (req, res) => {
-    db.all(
-        "SELECT * FROM cierres WHERE usuario_id = ?",
-        [req.params.id],
-        (err, rows) => {
-            if (err) return res.status(500).json({ error: err.message });
-            return res.json(rows || []); 
-        }
-    );
+app.get('/admin/cierres-usuario/:id', soloAdmin, async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT * FROM cierres WHERE usuario_id = $1`,
+            [req.params.id]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
-
-// 3. Actualizar permisos
-app.put('/admin/usuarios/permisos', soloAdmin, (req, res) => {
+app.put('/admin/usuarios/permisos', soloAdmin, async (req, res) => {
     const { id, estado, permiso_nivel, rol, horas_temporales } = req.body;
-    db.get("SELECT * FROM usuarios WHERE id = ?", [id], (err, user) => {
-        if (err || !user) return res.status(404).json({ error: "No encontrado" });
+    try {
+        const userResult = await pool.query(`SELECT * FROM usuarios WHERE id = $1`, [id]);
+        const user = userResult.rows[0];
+        if (!user) return res.status(404).json({ error: "No encontrado" });
+        
         const nEstado = estado !== undefined ? estado : user.estado;
         const nPermiso = permiso_nivel !== undefined ? permiso_nivel : user.permiso_nivel;
         const nRol = rol !== undefined ? rol : user.rol;
         let nExpira = user.expira_en;
+        
         if (horas_temporales && horas_temporales !== "0") {
-            let d = new Date(); d.setHours(d.getHours() + parseInt(horas_temporales));
+            let d = new Date();
+            d.setHours(d.getHours() + parseInt(horas_temporales));
             nExpira = d.toISOString();
-        } else if (horas_temporales === "0") { nExpira = null; }
-        db.run(`UPDATE usuarios SET estado=?, permiso_nivel=?, rol=?, expira_en=? WHERE id=?`, 
-        [nEstado, nPermiso, nRol, nExpira, id], (err) => {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json({ ok: true });
-        });
-    });
+        } else if (horas_temporales === "0") {
+            nExpira = null;
+        }
+        
+        await pool.query(
+            `UPDATE usuarios SET estado=$1, permiso_nivel=$2, rol=$3, expira_en=$4 WHERE id=$5`,
+            [nEstado, nPermiso, nRol, nExpira, id]
+        );
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
-// 4. Eliminar Usuario
-app.delete('/admin/usuarios/:id', soloAdmin, (req, res) => {
-    db.run("DELETE FROM cierres WHERE usuario_id = ?", [req.params.id], () => {
-        db.run("DELETE FROM usuarios WHERE id = ?", [req.params.id], () => res.json({ ok: true }));
-    });
+app.delete('/admin/usuarios/:id', soloAdmin, async (req, res) => {
+    try {
+        await pool.query(`DELETE FROM cierres WHERE usuario_id = $1`, [req.params.id]);
+        await pool.query(`DELETE FROM usuarios WHERE id = $1`, [req.params.id]);
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // --- API CIERRES ---
-app.get("/cierres", verificarToken, (req, res) => {
-    db.all(`SELECT cierres.*, usuarios.nombre as cargado_por FROM cierres LEFT JOIN usuarios ON cierres.usuario_id = usuarios.id`, [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows || []);
-    });
+app.get("/cierres", verificarToken, async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT cierres.*, usuarios.nombre as cargado_por 
+            FROM cierres 
+            LEFT JOIN usuarios ON cierres.usuario_id = usuarios.id
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.post("/cierres", verificarToken, upload.single('foto'), async (req, res) => {
     const d = req.body;
-    const fotoUrl = req.file ? `/uploads/${req.file.filename}` : null;
+    let fotoUrl = null;
+
     try {
+        // Subir foto a Cloudinary si existe
+        if (req.file) {
+            const uploadResult = await new Promise((resolve, reject) => {
+                const uploadStream = cloudinary.uploader.upload_stream(
+                    { 
+                        resource_type: "auto",
+                        folder: "mapa-cierres"
+                    },
+                    (error, result) => {
+                        if (error) reject(error);
+                        else resolve(result);
+                    }
+                );
+                uploadStream.end(req.file.buffer);
+            });
+            fotoUrl = uploadResult.secure_url;
+        }
+
+        // Geocodificar dirección
         const queryGeo = encodeURIComponent(`${d.direccion}, ${d.localidad}, Cordoba, Argentina`);
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${queryGeo}`, { headers: { 'User-Agent': 'App' } });
-        const data = await response.json();
-        const lat = data.length > 0 ? parseFloat(data[0].lat) : -31.4241;
-        const lng = data.length > 0 ? parseFloat(data[0].lon) : -64.4978;
-        const sql = `INSERT INTO cierres (usuario_id, direccion, barrio, localidad, precio_publicacion, precio_cierre, tipo_propiedad, es_ph, piso, disposicion, m2_cubiertos, m2_terreno, antiguedad, banios, cocheras, dormitorios, credito, dias_mercado, gas, cloacas, pavimento, pileta, amenities, observaciones, foto, lat, lng) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
-        db.run(sql, [req.usuario.id, d.direccion, d.barrio, d.localidad, d.precio_publicacion, d.precio_cierre, d.tipo_propiedad, d.es_ph ? 1 : 0, d.piso, d.disposicion, d.m2_cubiertos, d.m2_terreno, d.antiguedad, d.banios, d.cocheras, d.dormitorios, d.credito ? 1 : 0, d.dias_mercado, d.gas ? 1 : 0, d.cloacas ? 1 : 0, d.pavimento ? 1 : 0, d.pileta ? 1 : 0, d.amenities ? 1 : 0, d.observaciones, fotoUrl, lat, lng], function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json({ ok: true });
-        });
-    } catch (e) { res.status(500).json({ error: "Error" }); }
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${queryGeo}`, 
+            { headers: { 'User-Agent': 'App' } }
+        );
+        const geoData = await response.json();
+        const lat = geoData.length > 0 ? parseFloat(geoData[0].lat) : -31.4241;
+        const lng = geoData.length > 0 ? parseFloat(geoData[0].lon) : -64.4978;
+
+        // Insertar en BD
+        await pool.query(
+            `INSERT INTO cierres 
+             (usuario_id, direccion, barrio, localidad, precio_publicacion, precio_cierre, tipo_propiedad, 
+              es_ph, piso, disposicion, m2_cubiertos, m2_terreno, antiguedad, banios, cocheras, dormitorios, 
+              credito, dias_mercado, gas, cloacas, pavimento, pileta, amenities, observaciones, foto, lat, lng) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)`,
+            [req.usuario.id, d.direccion, d.barrio, d.localidad, d.precio_publicacion, d.precio_cierre, 
+             d.tipo_propiedad, d.es_ph ? 1 : 0, d.piso, d.disposicion, d.m2_cubiertos, d.m2_terreno, 
+             d.antiguedad, d.banios, d.cocheras, d.dormitorios, d.credito ? 1 : 0, d.dias_mercado, 
+             d.gas ? 1 : 0, d.cloacas ? 1 : 0, d.pavimento ? 1 : 0, d.pileta ? 1 : 0, d.amenities ? 1 : 0, 
+             d.observaciones, fotoUrl, lat, lng]
+        );
+        res.json({ ok: true });
+    } catch (e) { 
+        res.status(500).json({ error: e.message }); 
+    }
 });
 
-app.delete('/cierres/:id', verificarToken, (req, res) => {
-    db.get("SELECT usuario_id, foto FROM cierres WHERE id = ?", [req.params.id], (err, c) => {
-        if (c && (c.usuario_id === req.usuario.id || req.usuario.rol === 'admin')) {
-            if (c.foto) { try { fs.unlinkSync(path.join(__dirname, '..', c.foto)); } catch(e){} }
-            db.run(`DELETE FROM cierres WHERE id = ?`, [req.params.id], () => res.json({ ok: true }));
-        } else { res.status(403).json({ error: "No permitido" }); }
-    });
+app.delete('/cierres/:id', verificarToken, async (req, res) => {
+    try {
+        const result = await pool.query(`SELECT usuario_id, foto FROM cierres WHERE id = $1`, [req.params.id]);
+        const cierre = result.rows[0];
+        
+        if (!cierre || (cierre.usuario_id !== req.usuario.id && req.usuario.rol !== 'admin')) {
+            return res.status(403).json({ error: "No permitido" });
+        }
+        
+        // Eliminar de Cloudinary si existe
+        if (cierre.foto) {
+            try {
+                const publicId = cierre.foto.split('/').pop().split('.')[0];
+                await cloudinary.uploader.destroy(`mapa-cierres/${publicId}`);
+            } catch(e) {}
+        }
+        
+        await pool.query(`DELETE FROM cierres WHERE id = $1`, [req.params.id]);
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
-app.get('/activar-mi-usuario', (req, res) => {
-    db.run(`UPDATE usuarios SET estado = 'activo', rol = 'admin' WHERE email = 'denunfacu98@gmail.com'`, () => res.send("OK Admin"));
+app.get('/activar-mi-usuario', async (req, res) => {
+    try {
+        await pool.query(`UPDATE usuarios SET estado = 'activo', rol = 'admin' WHERE email = 'denunfacu98@gmail.com'`);
+        res.send("OK Admin");
+    } catch (err) {
+        res.send("Error");
+    }
 });
 
 // --- API REPORTES ---
-
-// Crear reporte (accesible para todos los usuarios)
-app.post('/reportes', verificarToken, (req, res) => {
+app.post('/reportes', verificarToken, async (req, res) => {
     const { tipo, mensaje } = req.body;
     if (!tipo || !mensaje) {
         return res.status(400).json({ error: "Faltan datos" });
     }
-    db.run(
-        `INSERT INTO reportes (usuario_id, nombre_usuario, tipo, mensaje) VALUES (?, ?, ?, ?)`,
-        [req.usuario.id, req.usuario.nombre, tipo, mensaje],
-        function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json({ ok: true, message: "Reporte enviado exitosamente" });
-        }
-    );
+    try {
+        await pool.query(
+            `INSERT INTO reportes (usuario_id, nombre_usuario, tipo, mensaje) VALUES ($1, $2, $3, $4)`,
+            [req.usuario.id, req.usuario.nombre, tipo, mensaje]
+        );
+        res.json({ ok: true, message: "Reporte enviado exitosamente" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
-// Obtener todos los reportes (solo admin)
-app.get('/reportes', soloAdmin, (req, res) => {
-    db.all(
-        `SELECT id, usuario_id, nombre_usuario, tipo, mensaje, creado_en FROM reportes ORDER BY creado_en DESC`,
-        [],
-        (err, rows) => {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json(rows || []);
-        }
-    );
+app.get('/reportes', soloAdmin, async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT id, usuario_id, nombre_usuario, tipo, mensaje, creado_en FROM reportes ORDER BY creado_en DESC`
+        );
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
-// Eliminar reporte (solo admin)
-app.delete('/reportes/:id', soloAdmin, (req, res) => {
-    db.run(
-        `DELETE FROM reportes WHERE id = ?`,
-        [req.params.id],
-        (err) => {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json({ ok: true });
-        }
-    );
+app.delete('/reportes/:id', soloAdmin, async (req, res) => {
+    try {
+        await pool.query(`DELETE FROM reportes WHERE id = $1`, [req.params.id]);
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 const PORT = process.env.PORT || 3000;
