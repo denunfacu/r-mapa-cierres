@@ -34,7 +34,19 @@ const upload = multer({
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, '../frontend')));
+
+// RUTAS CORRECTAS PARA RENDER
+app.use(express.static(path.join(__dirname, '..', 'frontend')));
+
+// ...existing code...
+
+// --- RUTAS DE PÁGINAS ---
+app.get('/login-page', (req, res) => res.sendFile(path.join(__dirname, '..', 'frontend', 'login.html')));
+app.get('/registro', (req, res) => res.sendFile(path.join(__dirname, '..', 'frontend', 'registro.html')));
+app.get('/admin-panel', (req, res) => res.sendFile(path.join(__dirname, '..', 'frontend', 'admin.html')));
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, '..', 'frontend', 'index.html')));
+
+// ...existing code... (el resto del código igual)
 
 // --- INICIALIZACIÓN DE TABLAS ---
 async function initDB() {
