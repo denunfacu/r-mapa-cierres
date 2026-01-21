@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <script>
+        const token = localStorage.getItem('token');
+        if (!token) window.location.href = '/login-page';
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mapa Inmobiliario - Carlos Paz</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="reportes.css">
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <div id="btn-abrir-formulario" class="floating-btn">➕ AGREGAR CIERRE</div>
+    <div id="btn-logout" class="floating-btn logout-btn">🚪 CERRAR SESIÓN</div>
+    <div id="contenedor-admin"></div>
+    
+    <button id="btn-abrir-filtros">🔍</button>
+
+    <div id="panel-filtros">
+        <div class="panel-header">
+            <h3>Filtros Avanzados</h3>
+            <button onclick="cerrarMenuFiltros()" class="btn-cerrar-filtros">✕</button>
+        </div>
+
+        <div class="panel-filtros-content">
+            <label class="label-f">Tipo de Propiedad</label>
+            <select id="filtro-tipo" class="f-input">
+                <option value="todos">Todos</option>
+                <option value="casa">Casa</option>
+                <option value="departamento">Departamento</option>
+                <option value="duplex">Duplex</option>
+                <option value="ph">PH</option>
+                <option value="oficina">Oficina</option>
+                <option value="terreno">Terreno</option>
+                <option value="cochera">Cochera</option>
+            </select>
+
+            <label class="label-f">Localidad</label>
+            <select id="filtro-localidad" class="f-input" onchange="actualizarBarriosFiltro()">
+                <option value="todos">Todas</option>
+                <option value="Villa Carlos Paz">Villa Carlos Paz</option>
+                <option value="San Antonio">San Antonio</option>
+                <option value="Malagueño">Malagueño</option>
+                <option value="Villa Santa Cruz del Lago">Villa Santa Cruz del Lago</option>
+                <option value="San Nicolas">San Nicolas</option>
+                <option value="Mayu Sumaj">Mayu Sumaj</option>
+                <option value="Villa Río Icho Cruz">Villa Río Icho Cruz</option>
+                <option value="Tala Huasi">Tala Huasi</option>
+                <option value="Cuesta Blanca">Cuesta Blanca</option>
+                <option value="Estancia Vieja">Estancia Vieja</option>
+                <option value="Parque Siquiman">Parque Siquiman</option>
+                <option value="Cabalango">Cabalango</option>
+                <option value="Tanti">Tanti</option>
+                <option value="Bialet Massé">Bialet Massé</option>
+            </select>
+
+            <label class="label-f">Barrio</label>
+            <select id="filtro-barrio" class="f-input">
+                <option value="todos">Todos los barrios</option>
+            </select>
+
+            <label class="label-f">Precio Cierre (USD)</label>
+            <div class="flex-gap-5">
+                <input type="number" id="precio-desde" placeholder="Desde" class="f-input" step="1000">
+                <input type="number" id="precio-hasta" placeholder="Hasta" class="f-input" step="1000">
+            </div>
+
+            <div class="grid-filtros-internos">
+                <div>
+                    <label class="label-f">Dormitorios (Mín.)</label>
+                    <input type="number" id="f-dorms" class="f-input" placeholder="Min">
+                </div>
+                <div>
+                    <label class="label-f">Baños (Mín.)</label>
+                    <input type="number" id="f-banios" class="f-input" placeholder="Min">
+                </div>
+                <div>
+                    <label class="label-f">Cocheras (Mín.)</label>
+                    <input type="number" id="f-cocheras" class="f-input" placeholder="Min">
+                </div>
+                <div>
+                    <label class="label-f">Antigüedad (Máx.)</label>
+                    <input type="number" id="f-antig-hasta" class="f-input" placeholder="Años">
+                </div>
+            </div>
+
+            <label class="label-f">M² Cubiertos</label>
+            <div class="flex-gap-5">
+                <input type="number" id="m2-cub-desde" placeholder="Desde" class="f-input">
+                <input type="number" id="m2-cub-hasta" placeholder="Hasta" class="f-input">
+            </div>
+
+            <label class="label-f">M² Terreno</label>
+            <div class="flex-gap-5">
+                <input type="number" id="m2-terr-desde" placeholder="Desde" class="f-input">
+                <input type="number" id="m2-terr-hasta" placeholder="Hasta" class="f-input">
+            </div>
+
+            <label class="label-f">Días en Mercado</label>
+            <div class="radio-grid-filtros">
+                <label><input type="radio" name="f-dias-radio" value="todos" checked> Todos</label>
+                <label><input type="radio" name="f-dias-radio" value="30"> 30/- días</label>
+                <label><input type="radio" name="f-dias-radio" value="60"> 60 días</label>
+                <label><input type="radio" name="f-dias-radio" value="90"> 90 días</label>
+                <label><input type="radio" name="f-dias-radio" value="120"> 120/+ días</label>
+            </div>
+
+            <label class="label-f">Características</label>
+            <div class="check-grid-filtros">
+                <label><input type="checkbox" id="f-credito"> Apto Crédito</label>
+                <label><input type="checkbox" id="f-gas"> Gas Natural</label>
+                <label><input type="checkbox" id="f-cloacas"> Cloacas</label>
+                <label><input type="checkbox" id="f-pavimento"> Pavimento</label>
+                <label><input type="checkbox" id="f-pileta"> Pileta</label>
+                <label><input type="checkbox" id="f-amenities"> Amenities</label>
+            </div>
+        </div>
+
+        <div class="panel-filtros-footer">
+            <button id="aplicar-filtros" class="btn-aplicar-f">APLICAR</button>
+            <button id="limpiar-filtros" class="btn-limpiar-f">LIMPIAR</button>
+        </div>
+    </div>
+
+    <div class="filtros-adicionales-container">
+        <label>Tipo de Propiedad:</label>
+        <select id="filtro-tipo-rapido" class="form-control-rapido">
+            <option value="todos">Todos</option>
+            <option value="casa">Casa</option>
+            <option value="departamento">Departamento</option>
+            <option value="duplex">Duplex</option>
+            <option value="oficina">Oficina</option>
+        </select>
+
+        <label>Precio Máximo (USD):</label>
+        <input type="number" id="filtro-precio" class="form-control-rapido" placeholder="Ej: 150000">
+
+        <label>Dormitorios:</label>
+        <select id="filtro-dormitorios" class="form-control-rapido">
+            <option value="todos">Cualquiera</option>
+            <option value="1">1 o más</option>
+            <option value="2">2 o más</option>
+            <option value="3">3 o más</option>
+        </select>
+
+        <button id="aplicar-filtros-2" class="btn-aplicar-f">APLICAR FILTROS</button>
+        <button id="limpiar-filtros-2" class="btn-limpiar-f-gris">Limpiar Todo</button>
+    </div>
+
+<div id="modal-fondo" class="modal-overlay">
+    <div class="modal-content">
+        <h3>Nuevo Cierre</h3>
+        <div class="form-scroll">
+            <input id="direccion" placeholder="Calle y altura (Ej: San Martin 100)" />
+            
+            <label class="label-form">Localidad:</label>
+            <select id="localidad" onchange="actualizarBarrios()">
+                <option value="" disabled selected>Seleccione Localidad</option>
+                <option value="Villa Carlos Paz">Villa Carlos Paz</option>
+                <option value="San Antonio">San Antonio</option>
+                <option value="Malagueño">Malagueño</option>
+                <option value="Villa Santa Cruz del Lago">Villa Santa Cruz del Lago</option>
+                <option value="San Nicolas">San Nicolas</option>
+                <option value="Mayu Sumaj">Mayu Sumaj</option>
+                <option value="Villa Río Icho Cruz">Villa Río Icho Cruz</option>
+                <option value="Tala Huasi">Tala Huasi</option>
+                <option value="Cuesta Blanca">Cuesta Blanca</option>
+                <option value="Estancia Vieja">Estancia Vieja</option>
+                <option value="Parque Siquiman">Parque Siquiman</option>
+                <option value="Cabalango">Cabalango</option>
+                <option value="Tanti">Tanti</option>
+                <option value="Bialet Massé">Bialet Massé</option>
+            </select>
+
+            <label class="label-form">Barrio:</label>
+            <select id="barrio">
+                <option value="" disabled selected>Seleccione Barrio</option>
+            </select>
+            
+            <div class="grid-2">
+                <div>
+                    <label class="label-form">Precio Publicación</label>
+                    <input id="precio_publicacion" type="number" placeholder="USD">
+                </div>
+                <div>
+                    <label class="label-form">Precio Cierre</label>
+                    <input id="precio_cierre" type="number" placeholder="USD">
+                </div>
+            </div>
+
+            <label class="label-form">Tipo de Propiedad:</label>
+            <select id="tipo_propiedad" onchange="toggleCamposExtra()">
+                <option value="" disabled selected>Seleccione tipo de propiedad</option>
+                <option value="casa">Casa</option>
+                <option value="duplex">Dúplex</option>
+                <option value="departamento">Departamento</option>
+                <option value="local">Local</option>
+                <option value="lote">Lote</option>
+                <option value="cochera">Cochera</option>
+                <option value="oficina">Oficina</option>
+                <option value="complejo">Complejo</option>
+                <option value="hotel">Hotel</option>
+                <option value="fdo_comercio">Fdo. Comercio</option>
+            </select>
+
+            <div id="extra-casa" class="extra-campos">
+                <label class="check-item"><input id="es_ph" type="checkbox" /> <span>¿Es PH?</span></label>
+            </div>
+
+            <div id="extra-depto" class="extra-campos grid-2">
+                <input id="piso" placeholder="Piso" />
+                <input id="disposicion" placeholder="Disposición" />
+            </div>
+
+            <div class="grid-3">
+                <input id="dormitorios" type="number" placeholder="Dorm.">
+                <input id="banios" type="number" placeholder="Baños">
+                <input id="cocheras" type="number" placeholder="Coch.">
+            </div>
+
+            <div class="grid-3">
+                <input id="antiguedad" type="number" placeholder="Antigüedad">
+                <input id="m2_cubiertos" type="number" placeholder="m2 Cubiertos">
+                <input id="m2_terreno" type="number" placeholder="m2 Terreno">
+            </div>
+
+            <label class="label-form">Días en mercado:</label>
+            <div class="radio-group">
+                <label><input type="radio" name="dias" value="30"> 30/-</label>
+                <label><input type="radio" name="dias" value="60"> 60</label>
+                <label><input type="radio" name="dias" value="90"> 90</label>
+                <label><input type="radio" name="dias" value="120"> 120/+</label>
+            </div>
+
+            <div class="servicios-grid">
+                <label class="check-item"><input id="credito" type="checkbox" /> <span>Crédito</span></label>
+                <label class="check-item"><input id="gas" type="checkbox" /> <span>Gas</span></label>
+                <label class="check-item"><input id="cloacas" type="checkbox" /> <span>Cloacas</span></label>
+                <label class="check-item"><input id="pavimento" type="checkbox" /> <span>Pavimento</span></label>
+                <label class="check-item"><input id="pileta" type="checkbox" /> <span>Pileta</span></label>
+                <label class="check-item"><input id="amenities" type="checkbox" /> <span>Amenities</span></label>
+            </div>
+
+            <label class="label-form">Foto Portada:</label>
+            <input type="file" id="foto" accept="image/*" />
+
+            <label class="label-form">Observaciones (Máx. 140 car.):</label>
+            <textarea id="observaciones" maxlength="140" rows="3" placeholder="Ej: Mal estado, permuta, urgencia..."></textarea>
+            <small id="char-count">0 / 140</small>
+        </div>
+
+        <div class="modal-actions">
+            <button id="guardar" class="btn-guardar">GUARDAR EN MAPA</button>
+            <button id="cancelar-form" class="btn-cancelar">CANCELAR</button>
+        </div>
+    </div>
+</div>
+
+    <div id="sidebar-detalle" class="sidebar">
+        <div class="sidebar-header">
+            <h3>Detalle</h3>
+            <button id="cerrar-detalle" class="close-x">&times;</button>
+        </div>
+        <div id="detalle">Hacé click en un pin para ver info.</div>
+    </div>
+    <button onclick="quitarFiltro()">X</button>
+
+    <!-- Botón flotante para reportar errores/sugerencias -->
+    <button id="btn-reportar" class="btn-reportar">💬 REPORTAR</button>
+
+    <!-- Modal para reportar errores/sugerencias -->
+    <div id="modal-reportar" class="modal-overlay-reportar">
+        <div class="modal-reportar-content">
+            <div class="modal-reportar-header">
+                <h3>Reportar Error o Sugerencia</h3>
+                <button onclick="cerrarModalReportar()" class="close-modal-reportar">✕</button>
+            </div>
+            <div class="modal-reportar-body">
+                <div class="tipo-reporte">
+                    <label><input type="radio" name="tipo-reporte" value="error" checked> 🐛 Error</label>
+                    <label><input type="radio" name="tipo-reporte" value="sugerencia"> 💡 Sugerencia</label>
+                </div>
+                <textarea id="texto-reporte" placeholder="Describe el error o sugerencia aquí..." maxlength="500" rows="6"></textarea>
+                <small id="char-count-reporte">0 / 500</small>
+            </div>
+            <div class="modal-reportar-footer">
+                <button id="btn-enviar-reporte" class="btn-enviar-reporte">ENVIAR</button>
+                <button onclick="cerrarModalReportar()" class="btn-cancelar-reporte">CANCELAR</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>

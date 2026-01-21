@@ -1,0 +1,29 @@
+{
+  "name": "mapa-cierres-backend",
+  "version": "1.0.0",
+  "description": "Backend para mapa de cierres inmobiliarios",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "keywords": ["real-estate", "map"],
+  "author": "Facundo",
+  "license": "ISC",
+  "type": "commonjs",
+  "engines": {
+    "node": "18.x"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.0.2",
+    "node-fetch": "^2.7.0",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

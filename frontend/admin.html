@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <script>
+        // Detectar API URL automáticamente
+        const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:3000'
+            : window.location.origin;
+
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = `${API_URL}/login-page`;
+        } else {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (payload.rol !== 'admin') {
+                alert("No tienes permisos para acceder aquí");
+                window.location.href = `${API_URL}/`;
+            }
+        }
+    </script>
+    <meta charset="UTF-8">
+    <title>Panel de Control - Admin</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: sans-serif; padding: 20px; background: #f8f9fa; margin: 0; }
+        
+        .container-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .nav-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #ddd;
+        }
+        
+        .nav-tabs button {
+            padding: 12px 20px;
+            background: #e9ecef;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            border-radius: 5px 5px 0 0;
+            transition: all 0.3s ease;
+        }
+        
+        .nav-tabs button.active {
+            background: #007bff;
+            color: white;
+            border-bottom: 3px solid #0056b3;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        table { width: 100%; border-collapse: collapse; background: white; margin-top: 20px; }
+        th, td { padding: 12px; border: 1px solid #ddd; text-align: left; font-size: 14px; }
+        th { background: #343a40; color: white; }
+        select { padding: 5px; border-radius: 3px; width: 100%; }
+        .btn-espia { background: #007bff; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px; font-size: 12px; }
+        .btn-borrar { background: #dc3545; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px; font-size: 12px; }
+        .stats-badge { background: #eee; padding: 2px 6px; border-radius: 10px; font-weight: bold; }
+        
+        /* Estilos para reportes */
+        .reporte-item {
+            background: white;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin-bottom: 12px;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .reporte-item.error {
+            border-left-color: #dc3545;
+        }
+        
+        .reporte-item.sugerencia {
+            border-left-color: #28a745;
+        }
+        
+        .reporte-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+        
+        .reporte-tipo {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .reporte-tipo.error {
+            background: #dc3545;
+        }
+        
+        .reporte-tipo.sugerencia {
+            background: #28a745;
+        }
+        
+        .reporte-usuario {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .reporte-fecha {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .reporte-mensaje {
+            color: #555;
+            margin: 10px 0;
+            line-height: 1.4;
+        }
+        
+        .reporte-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+        }
+        
+        .filtro-reportes {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+        
+        .filtro-reportes select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            min-width: 150px;
+        }
+        
+        .stats-reportes {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 6px;
+        }
+        
+        .stat-card {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            border-radius: 6px;
+            background: #f8f9fa;
+        }
+        
+        .stat-card h4 {
+            margin: 0 0 5px 0;
+            color: #666;
+        }
+        
+        .stat-card .number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .stat-card.errors {
+            border-left: 4px solid #dc3545;
+        }
+        
+        .stat-card.suggestions {
+            border-left: 4px solid #28a745;
+        }
+        
+        .stat-card.total {
+            border-left: 4px solid #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-header">
+        <h1>Panel de Control Admin</h1>
+        <button onclick="window.location.href='/'" style="padding: 10px 20px; cursor: pointer;">VOLVER AL MAPA</button>
+    </div>
+    
+    <div class="nav-tabs">
+        <button class="tab-button active" data-tab="colegas" onclick="activarTab('colegas')">👥 Gestión de Colegas</button>
+        <button class="tab-button" data-tab="reportes" onclick="activarTab('reportes')">💬 Reportes y Sugerencias</button>
+    </div>
+    
+    <!-- TAB: COLEGAS -->
+    <div id="tab-colegas" class="tab-content active">
+        <table>
+            <thead>
+                <tr>
+                    <th>Colega</th>
+                    <th>Cierres</th>
+                    <th>Estado</th>
+                    <th>Permisos</th>
+                    <th>Acceso Temporal</th>
+                    <th>Rol</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="tabla-usuarios"></tbody>
+        </table>
+    </div>
+    
+    <!-- TAB: REPORTES -->
+    <div id="tab-reportes" class="tab-content">
+        <div class="stats-reportes">
+            <div class="stat-card errors">
+                <h4>🐛 Errores</h4>
+                <div class="number" id="total-errores">0</div>
+            </div>
+            <div class="stat-card suggestions">
+                <h4>💡 Sugerencias</h4>
+                <div class="number" id="total-sugerencias">0</div>
+            </div>
+            <div class="stat-card total">
+                <h4>📊 Total</h4>
+                <div class="number" id="total-reportes">0</div>
+            </div>
+        </div>
+        
+        <div class="filtro-reportes">
+            <label for="filtro-tipo-reporte" style="font-weight: bold;">Filtrar por:</label>
+            <select id="filtro-tipo-reporte" onchange="filtrarReportes()">
+                <option value="todos">Todos</option>
+                <option value="error">🐛 Errores</option>
+                <option value="sugerencia">💡 Sugerencias</option>
+            </select>
+        </div>
+        
+        <div id="contenedor-reportes"></div>
+    </div>
+
+    <script>
+        const tokenAdmin = localStorage.getItem('token');
+        
+        // Cambiar tabs
+        function activarTab(tab) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-button').forEach(el => el.classList.remove('active'));
+            
+            const tabElement = document.getElementById(`tab-${tab}`);
+            if (tabElement) {
+                tabElement.classList.add('active');
+            }
+            
+            const button = document.querySelector(`[data-tab="${tab}"]`);
+            if (button) {
+                button.classList.add('active');
+            }
+            
+            if (tab === 'reportes') {
+                cargarReportes();
+            } else if (tab === 'colegas') {
+                cargarUsuarios();
+            }
+        }
+        
+        // COLEGAS
+        async function cargarUsuarios() {
+            try {
+                const res = await fetch(`${API_URL}/admin/usuarios`, {
+                    headers: { 'Authorization': tokenAdmin }
+                });
+                const usuarios = await res.json();
+                const lista = document.getElementById('tabla-usuarios');
+                lista.innerHTML = '';
+                
+                usuarios.forEach(u => {
+                    lista.innerHTML += `
+                        <tr>
+                            <td>
+                                <strong>${u.nombre}</strong><br>
+                                <small>${u.email}</small>
+                            </td>
+                            <td style="text-align:center;">
+                                <span class="stats-badge">${u.total_cierres || 0}</span>
+                            </td>
+                            <td>
+                                <select onchange="actualizarPermisos(${u.id}, 'estado', this.value)">
+                                    <option value="pendiente" ${u.estado === 'pendiente' ? 'selected' : ''}>Pendiente</option>
+                                    <option value="activo" ${u.estado === 'activo' ? 'selected' : ''}>Activo</option>
+                                </select>
+                            </td>
+                            <td>
+                                <select onchange="actualizarPermisos(${u.id}, 'permiso_nivel', this.value)">
+                                    <option value="ver" ${u.permiso_nivel === 'ver' ? 'selected' : ''}>Solo Ver</option>
+                                    <option value="registrar" ${u.permiso_nivel === 'registrar' ? 'selected' : ''}>Ver y Cargar</option>
+                                </select>
+                            </td>
+                            <td>
+                                <select onchange="actualizarPermisos(${u.id}, 'horas', this.value)">
+                                    <option value="0">Permanente</option>
+                                    <option value="1">1 Hora</option>
+                                    <option value="24">24 Horas</option>
+                                </select>
+                            </td>
+                            <td>
+                                <select onchange="actualizarPermisos(${u.id}, 'rol', this.value)">
+                                    <option value="user" ${u.rol === 'user' ? 'selected' : ''}>Colega</option>
+                                    <option value="admin" ${u.rol === 'admin' ? 'selected' : ''}>Admin</option>
+                                </select>
+                            </td>
+                            <td>
+                                <button class="btn-espia" onclick="verPinesDe(${u.id}, '${u.nombre}')">MODO ESPÍA</button>
+                                <button class="btn-borrar" onclick="borrarUsuario(${u.id})">Eliminar</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } catch (error) {
+                console.error('Error al cargar usuarios:', error);
+            }
+        }
+
+        async function actualizarPermisos(id, campo, valor) {
+            const data = { id };
+            if (campo === 'estado') data.estado = valor;
+            if (campo === 'permiso_nivel') data.permiso_nivel = valor;
+            if (campo === 'rol') data.rol = valor;
+            if (campo === 'horas') data.horas_temporales = valor;
+
+            const res = await fetch(`${API_URL}/admin/usuarios/permisos`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': tokenAdmin },
+                body: JSON.stringify(data)
+            });
+            if(!res.ok) {
+                alert("Error actualizando");
+            }
+        }
+
+        function verPinesDe(id, nombre) {
+            localStorage.setItem('filtro_usuario_id', id);
+            localStorage.setItem('filtro_usuario_nombre', nombre);
+            window.location.href = '/';
+        }
+
+        async function borrarUsuario(id) {
+            if(!confirm("¿ESTÁS SEGURO? Se borrará el usuario y TODAS sus propiedades cargadas.")) return;
+            
+            const res = await fetch(`/admin/usuarios/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': tokenAdmin }
+            });
+
+            if(res.ok) {
+                cargarUsuarios();
+            } else {
+                alert("No se pudo eliminar al usuario.");
+            }
+        }
+        
+        // REPORTES
+        let todosLosReportes = [];
+        
+        async function cargarReportes() {
+            try {
+                const res = await fetch(`${API_URL}/reportes`, {
+                    headers: { 'Authorization': tokenAdmin }
+                });
+                
+                if (!res.ok) throw new Error('Error al cargar reportes');
+                
+                todosLosReportes = await res.json();
+                actualizarEstadisticas();
+                filtrarReportes();
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('contenedor-reportes').innerHTML = '<p style="color: red;">❌ Error al cargar los reportes.</p>';
+            }
+        }
+        
+        function actualizarEstadisticas() {
+            const errores = todosLosReportes.filter(r => r.tipo === 'error').length;
+            const sugerencias = todosLosReportes.filter(r => r.tipo === 'sugerencia').length;
+            const total = todosLosReportes.length;
+            
+            document.getElementById('total-errores').innerText = errores;
+            document.getElementById('total-sugerencias').innerText = sugerencias;
+            document.getElementById('total-reportes').innerText = total;
+        }
+        
+        function filtrarReportes() {
+            const filtro = document.getElementById('filtro-tipo-reporte').value;
+            const contenedor = document.getElementById('contenedor-reportes');
+            
+            let reportesFiltrados = todosLosReportes;
+            if (filtro !== 'todos') {
+                reportesFiltrados = todosLosReportes.filter(r => r.tipo === filtro);
+            }
+            
+            if (reportesFiltrados.length === 0) {
+                contenedor.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">📭 No hay reportes en esta categoría</p>';
+                return;
+            }
+            
+            contenedor.innerHTML = reportesFiltrados.map(reporte => {
+                const fecha = new Date(reporte.creado_en).toLocaleDateString('es-AR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                
+                return `
+                    <div class="reporte-item ${reporte.tipo}">
+                        <div class="reporte-header">
+                            <div>
+                                <span class="reporte-tipo ${reporte.tipo}">
+                                    ${reporte.tipo === 'error' ? '🐛 ERROR' : '💡 SUGERENCIA'}
+                                </span>
+                                <div style="margin-top: 8px;">
+                                    <span class="reporte-usuario">👤 ${reporte.nombre_usuario}</span>
+                                    <span class="reporte-fecha" style="margin-left: 15px;">📅 ${fecha}</span>
+                                </div>
+                            </div>
+                            <button class="btn-borrar" onclick="borrarReporte(${reporte.id})">🗑️ Eliminar</button>
+                        </div>
+                        <div class="reporte-mensaje">${reporte.mensaje}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        async function borrarReporte(id) {
+            if (!confirm('¿Eliminar este reporte?')) return;
+            
+            try {
+                const res = await fetch(`/reportes/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': tokenAdmin }
+                });
+                
+                if (res.ok) {
+                    todosLosReportes = todosLosReportes.filter(r => r.id !== id);
+                    actualizarEstadisticas();
+                    filtrarReportes();
+                } else {
+                    alert('❌ Error al eliminar el reporte');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('❌ Error de conexión');
+            }
+        }
+        
+        // Cargar colegas al iniciar
+        cargarUsuarios();
+    </script>
+</body>
+</html>

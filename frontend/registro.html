@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro - Mapa VCP</title>
+    <style>
+        body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 90%; max-width: 350px; text-align: center; }
+        h2 { color: #333; margin-bottom: 20px; }
+        
+        .password-wrapper { position: relative; width: 100%; }
+        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        
+        .toggle-password {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: #666;
+        }
+
+        button { width: 100%; padding: 12px; background: #28a745; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; margin-top: 10px; }
+        p { margin-top: 20px; font-size: 14px; color: #666; }
+        a { color: #28a745; text-decoration: none; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Crear Cuenta</h2>
+        <input type="text" id="nombre" placeholder="Nombre completo">
+        <input type="email" id="email" placeholder="Email">
+        
+        <div class="password-wrapper">
+            <input type="password" id="password" placeholder="Elegí una contraseña">
+            <span class="toggle-password" onclick="togglePass()">👁️</span>
+        </div>
+
+        <button onclick="registrar()">REGISTRARME</button>
+        <p>¿Ya tenés cuenta? <a href="/login-page">Iniciá sesión</a></p>
+    </div>
+
+    <script>
+        // Detectar API URL automáticamente
+        const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:3000'
+            : window.location.origin;
+
+        function togglePass() {
+            const passInput = document.getElementById('password');
+            const icon = document.querySelector('.toggle-password');
+            if (passInput.type === "password") {
+                passInput.type = "text";
+                icon.innerText = "🙈";
+            } else {
+                passInput.type = "password";
+                icon.innerText = "👁️";
+            }
+        }
+
+        async function registrar() {
+            const nombre = document.getElementById('nombre').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            if(!nombre || !email || !password) return alert("Completá todos los campos");
+
+            const res = await fetch(`${API_URL}/registrar`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nombre, email, password })
+            });
+            if (res.ok) {
+                alert("¡Registro exitoso! Avisale a Facu para que te habilite.");
+                window.location.href = `${API_URL}/login-page`;
+            } else {
+                alert("Error al registrar: El email ya existe.");
+            }
+        }
+    </script>
+</body>
+</html>
