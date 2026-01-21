@@ -141,6 +141,20 @@ async function createAdminUser() {
 // Inicializar BD
 initDB().then(() => createAdminUser());
 
+// --- FUNCIÓN PARA LIMPIAR NÚMEROS ---
+// Convierte strings vacíos a null, y strings numéricos a numbers
+const limpiarNum = (val) => {
+    if (val === undefined || val === null || val === "") return null;
+    const num = parseFloat(val);
+    return isNaN(num) ? null : num;
+};
+
+// --- FUNCIÓN PARA LIMPIAR BOOLEANOS ---
+// Asegura que los checkboxes sean 0 o 1
+const limpiarBool = (val) => {
+    return val ? 1 : 0;
+};
+
 // --- MIDDLEWARES ---
 function verificarToken(req, res, next) {
     const token = req.headers['authorization'];
@@ -328,11 +342,35 @@ app.post("/cierres", verificarToken, upload.single('foto'), async (req, res) => 
               es_ph, piso, disposicion, m2_cubiertos, m2_terreno, antiguedad, banios, cocheras, dormitorios, 
               credito, dias_mercado, gas, cloacas, pavimento, pileta, amenities, observaciones, foto, lat, lng) 
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)`,
-            [req.usuario.id, d.direccion, d.barrio, d.localidad, d.precio_publicacion, d.precio_cierre, 
-             d.tipo_propiedad, d.es_ph ? 1 : 0, d.piso, d.disposicion, d.m2_cubiertos, d.m2_terreno, 
-             d.antiguedad, d.banios, d.cocheras, d.dormitorios, d.credito ? 1 : 0, d.dias_mercado, 
-             d.gas ? 1 : 0, d.cloacas ? 1 : 0, d.pavimento ? 1 : 0, d.pileta ? 1 : 0, d.amenities ? 1 : 0, 
-             d.observaciones, fotoUrl, lat, lng]
+            [
+                req.usuario.id, 
+                d.direccion, 
+                d.barrio, 
+                d.localidad, 
+                limpiarNum(d.precio_publicacion),
+                limpiarNum(d.precio_cierre), 
+                d.tipo_propiedad, 
+                limpiarBool(d.es_ph), 
+                d.piso, 
+                d.disposicion, 
+                limpiarNum(d.m2_cubiertos), 
+                limpiarNum(d.m2_terreno), 
+                limpiarNum(d.antiguedad), 
+                limpiarNum(d.banios), 
+                limpiarNum(d.cocheras), 
+                limpiarNum(d.dormitorios), 
+                limpiarBool(d.credito), 
+                d.dias_mercado, 
+                limpiarBool(d.gas), 
+                limpiarBool(d.cloacas), 
+                limpiarBool(d.pavimento), 
+                limpiarBool(d.pileta), 
+                limpiarBool(d.amenities), 
+                d.observaciones, 
+                fotoUrl, 
+                lat, 
+                lng
+            ]
         );
         res.json({ ok: true });
     } catch (e) { 

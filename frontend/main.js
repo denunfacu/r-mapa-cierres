@@ -3,6 +3,17 @@ const API_URL = window.location.hostname === 'localhost' || window.location.host
     ? 'http://localhost:3000'
     : window.location.origin;
 
+// Función para formatear precios con separadores de miles
+function formatPrice(price) {
+    if (!price && price !== 0) return '';
+    return new Intl.NumberFormat('es-AR', {
+        style: 'currency',
+        currency: 'ARS',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).format(price).replace('ARS', 'USD');
+}
+
 var tokenSeguro = localStorage.getItem('token');
 var datosUsuario = { id: null, rol: 'user', permiso: 'ver' };
 let todosLosCierres = []; 
@@ -80,7 +91,7 @@ function crearPin(cierre) {
     const icono = iconosPorTipo[cierre.tipo_propiedad] || iconCasa;
 
     const marker = L.marker([cierre.lat, cierre.lng], { icon: icono }).addTo(map);
-    marker.bindTooltip(`<b>USD ${cierre.precio_cierre}</b>`, { direction: 'top', offset: [0, -30] });
+    marker.bindTooltip(`<b>${formatPrice(cierre.precio_cierre)}</b>`, { direction: 'top', offset: [0, -30] });
 
     marker.on('click', (e) => {
         L.DomEvent.stopPropagation(e);
@@ -107,8 +118,8 @@ function crearPin(cierre) {
                 <p style="margin:5px 0; color:#666; font-size:14px;">${cierre.barrio}, ${cierre.localidad}</p>
             </div>
 
-            <p class="precio-pub-sidebar">Publicación: USD ${cierre.precio_publicacion || 'S/D'}</p>
-            <p class="precio-cierre-sidebar">Precio Cierre: USD ${cierre.precio_cierre}</p>
+            <p class="precio-pub-sidebar">Publicación: ${formatPrice(cierre.precio_publicacion) || 'S/D'}</p>
+            <p class="precio-cierre-sidebar">Precio Cierre: ${formatPrice(cierre.precio_cierre)}</p>
             
             <div class="detalle-lista">
                 <div class="detalle-item"><b>Tipo:</b> <span>${(cierre.tipo_propiedad || 'S/D').toUpperCase()}</span></div>
