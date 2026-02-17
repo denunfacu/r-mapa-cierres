@@ -66,12 +66,15 @@ if (tokenSeguro) {
 }
 
 // Botón Logout 
-document.getElementById('btn-logout').onclick = () => {
-    if(confirm("¿Cerrar sesión?")) {
-        localStorage.removeItem('token');
-        window.location.href = `${API_URL}/login-page`;
-    }
-};
+const _btnLogout = document.getElementById('btn-logout');
+if (_btnLogout) {
+    _btnLogout.onclick = () => {
+        if(confirm("¿Cerrar sesión?")) {
+            localStorage.removeItem('token');
+            window.location.href = `${API_URL}/login-page`;
+        }
+    };
+}
 
 const iconCasa = L.icon({ iconUrl: 'icons/casa-verde.png', iconSize: [20, 20], iconAnchor: [16, 32] });
 const iconEdificio = L.icon({ iconUrl: 'icons/edificio-morado.png', iconSize: [32, 32], iconAnchor: [16, 32] });
@@ -81,14 +84,25 @@ const limitesVCP = [[-31.4800, -64.5800], [-31.3600, -64.4200]];
 const map = L.map('map', { maxBounds: limitesVCP, maxBoundsViscosity: 1.0 }).setView([-31.4241, -64.4978], 14);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-// OverlappingMarkerSpiderfier: maneja marcadores en la misma ubicación
-const oms = new OverlappingMarkerSpiderfier(map, { keepSpiderfied: true, nearbyDistance: 25 });
+// OverlappingMarkerSpiderfier: maneja marcadores en la misma ubicación (opcional)
+let oms = null;
+try {
+    if (typeof OverlappingMarkerSpiderfier !== 'undefined') {
+        oms = new OverlappingMarkerSpiderfier(map, { keepSpiderfied: true, nearbyDistance: 25 });
+    } else {
+        console.warn('OverlappingMarkerSpiderfier no cargado, funcionando sin spiderfy');
+    }
+} catch (e) {
+    console.warn('Error inicializando OMS:', e);
+    oms = null;
+}
 let markersActivos = []; 
 
 const modalForm = document.getElementById('modal-fondo');
 const sidebar = document.getElementById('sidebar-detalle');
 
-document.getElementById('btn-abrir-formulario').onclick = () => {
+const _btnAbrir = document.getElementById('btn-abrir-formulario');
+if (_btnAbrir) _btnAbrir.onclick = () => {
     if (datosUsuario.rol !== 'admin' && datosUsuario.permiso === 'ver') {
         alert("⛔ TU PLAN NO PERMITE CARGA. Solo puedes ver datos.");
         return;
@@ -98,8 +112,10 @@ document.getElementById('btn-abrir-formulario').onclick = () => {
     formatNumberInput(document.getElementById('precio_publicacion'));
     formatNumberInput(document.getElementById('precio_cierre'));
 };
-document.getElementById('cancelar-form').onclick = () => modalForm.style.display = 'none';
-document.getElementById('cerrar-detalle').onclick = () => sidebar.classList.remove('active');
+const _cancelarForm = document.getElementById('cancelar-form');
+if (_cancelarForm) _cancelarForm.onclick = () => modalForm.style.display = 'none';
+const _cerrarDetalle = document.getElementById('cerrar-detalle');
+if (_cerrarDetalle) _cerrarDetalle.onclick = () => sidebar.classList.remove('active');
 
 function toggleCamposExtra() {
     const tipo = document.getElementById('tipo_propiedad').value;
@@ -187,7 +203,9 @@ function crearPin(cierre) {
 }
     // Añadir marcador al mapa y registrarlo en OMS para spiderfy en caso de solapamiento
     marker.addTo(map);
-    oms.addMarker(marker);
+    if (oms && typeof oms.addMarker === 'function') {
+        try { oms.addMarker(marker); } catch (e) { console.warn('OMS addMarker falló', e); }
+    }
     markersActivos.push(marker);
 
 document.getElementById("guardar").onclick = async () => {
@@ -311,7 +329,9 @@ function aplicarFiltrosEfectivos() {
 
     // Eliminar todos los marcadores previos (y desregistrarlos de OMS)
     markersActivos.forEach(m => {
-        try { oms.removeMarker(m); } catch (e) {}
+        if (oms && typeof oms.removeMarker === 'function') {
+            try { oms.removeMarker(m); } catch (e) { console.warn('OMS removeMarker falló', e); }
+        }
         if (map.hasLayer(m)) map.removeLayer(m);
     });
     markersActivos = [];
