@@ -61,20 +61,9 @@ if (tokenSeguro) {
                     ⚙️ PANEL ADMIN
                 </button>
             `;
-        });
-
-        // Añadir marcador al mapa y registrarlo en OMS para spiderfy en caso de solapamiento
-        marker.addTo(map);
-        if (oms && typeof oms.addMarker === 'function') {
-            try { oms.addMarker(marker); } catch (e) { console.warn('OMS addMarker falló', e); }
         }
-        markersActivos.push(marker);
-
     }
-            localStorage.removeItem('token');
-            window.location.href = `${API_URL}/login-page`;
-        }
-    };
+
 }
 
 const iconCasa = L.icon({ iconUrl: 'icons/casa-verde.png', iconSize: [20, 20], iconAnchor: [16, 32] });
