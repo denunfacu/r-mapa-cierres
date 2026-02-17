@@ -76,6 +76,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
 // Variables globales para gestión de marcadores
 let marcadoresPorUbicacion = {}; // Agrupar marcadores por lat,lng
+let markersActivos = []; // Array de marcadores activos en el mapa
 const modalForm = document.getElementById('modal-fondo');
 const sidebar = document.getElementById('sidebar-detalle');
 
