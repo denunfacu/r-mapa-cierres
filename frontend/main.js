@@ -74,27 +74,8 @@ const limitesVCP = [[-31.4800, -64.5800], [-31.3600, -64.4200]];
 const map = L.map('map', { maxBounds: limitesVCP, maxBoundsViscosity: 1.0 }).setView([-31.4241, -64.4978], 14);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-// OverlappingMarkerSpiderfier: maneja marcadores en la misma ubicación
-let oms = null;
-let marcadoresPorUbicacion = {}; // Agrupar marcadores por lat,lng para contar
-try {
-    if (typeof OverlappingMarkerSpiderfier !== 'undefined') {
-        oms = new OverlappingMarkerSpiderfier(map, { 
-            keepSpiderfied: true, 
-            nearbyDistance: 60,  // Aumentado para mejor agrupamiento
-            circleFootSeparation: 40,
-            circleStartAngle: 0,
-            legWeight: 1.5
-        });
-    } else {
-        console.warn('OverlappingMarkerSpiderfier no cargado, funcionando sin spiderfy');
-    }
-} catch (e) {
-    console.warn('Error inicializando OMS:', e);
-    oms = null;
-}
-let markersActivos = []; 
-
+// Variables globales para gestión de marcadores
+let marcadoresPorUbicacion = {}; // Agrupar marcadores por lat,lng
 const modalForm = document.getElementById('modal-fondo');
 const sidebar = document.getElementById('sidebar-detalle');
 
@@ -207,11 +188,8 @@ function crearPin(cierre) {
         `;
     });
 
-    // Añadir marcador al mapa y registrarlo en OMS para spiderfy en caso de solapamiento
+    // Añadir marcador al mapa
     marker.addTo(map);
-    if (oms && typeof oms.addMarker === 'function') {
-        try { oms.addMarker(marker); } catch (e) { console.warn('OMS addMarker falló', e); }
-    }
     markersActivos.push(marker);
 
 }
@@ -320,9 +298,6 @@ function crearPinesAgrupados(cierresFiltrados) {
         });
 
         marker.addTo(map);
-        if (oms && typeof oms.addMarker === 'function') {
-            try { oms.addMarker(marker); } catch (e) { console.warn('OMS addMarker falló', e); }
-        }
         markersActivos.push(marker);
     });
 }
