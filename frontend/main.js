@@ -81,6 +81,10 @@ const limitesVCP = [[-31.4800, -64.5800], [-31.3600, -64.4200]];
 const map = L.map('map', { maxBounds: limitesVCP, maxBoundsViscosity: 1.0 }).setView([-31.4241, -64.4978], 14);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
+// OverlappingMarkerSpiderfier: maneja marcadores en la misma ubicación
+const oms = new OverlappingMarkerSpiderfier(map, { keepSpiderfied: true, nearbyDistance: 25 });
+let markersActivos = []; 
+
 const modalForm = document.getElementById('modal-fondo');
 const sidebar = document.getElementById('sidebar-detalle');
 
@@ -117,7 +121,7 @@ function crearPin(cierre) {
     
     const icono = iconosPorTipo[cierre.tipo_propiedad] || iconCasa;
 
-    const marker = L.marker([cierre.lat, cierre.lng], { icon: icono }).addTo(map);
+    const marker = L.marker([cierre.lat, cierre.lng], { icon: icono });
     marker.bindTooltip(`<b>${formatPrice(cierre.precio_cierre)}</b>`, { direction: 'top', offset: [0, -30] });
 
     marker.on('click', (e) => {
@@ -181,6 +185,10 @@ function crearPin(cierre) {
         `;
     });
 }
+    // Añadir marcador al mapa y registrarlo en OMS para spiderfy en caso de solapamiento
+    marker.addTo(map);
+    oms.addMarker(marker);
+    markersActivos.push(marker);
 
 document.getElementById("guardar").onclick = async () => {
     const btn = document.getElementById("guardar");
@@ -301,8 +309,12 @@ function aplicarFiltrosEfectivos() {
         amenities: document.getElementById('f-amenities').checked
     };
 
-    // Eliminar todos los marcadores del mapa
-    map.eachLayer(layer => { if (layer instanceof L.Marker) map.removeLayer(layer); });
+    // Eliminar todos los marcadores previos (y desregistrarlos de OMS)
+    markersActivos.forEach(m => {
+        try { oms.removeMarker(m); } catch (e) {}
+        if (map.hasLayer(m)) map.removeLayer(m);
+    });
+    markersActivos = [];
 
     const filtrados = todosLosCierres.filter(c => {
         return (v.tipo === 'todos' || c.tipo_propiedad === v.tipo) &&
