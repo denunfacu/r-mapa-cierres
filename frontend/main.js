@@ -109,8 +109,10 @@ if (_cerrarDetalle) _cerrarDetalle.onclick = () => sidebar.classList.remove('act
 
 function toggleCamposExtra() {
     const tipo = document.getElementById('tipo_propiedad').value;
-    document.getElementById('extra-casa').style.display = (tipo === 'casa' || tipo === 'duplex') ? 'block' : 'none';
-    document.getElementById('extra-depto').style.display = (tipo === 'departamento') ? 'grid' : 'none';
+    const extraCasa = document.getElementById('extra-casa');
+    const extraDepto = document.getElementById('extra-depto');
+    if (extraCasa) extraCasa.style.display = (tipo === 'casa' || tipo === 'duplex') ? 'block' : 'none';
+    if (extraDepto) extraDepto.style.display = (tipo === 'departamento') ? 'grid' : 'none';
 }
 
 function crearPin(cierre) {
@@ -190,7 +192,7 @@ function crearPin(cierre) {
             ${btnBorrar}
         `;
     });
-}
+
     // Añadir marcador al mapa y registrarlo en OMS para spiderfy en caso de solapamiento
     marker.addTo(map);
     if (oms && typeof oms.addMarker === 'function') {
@@ -198,7 +200,14 @@ function crearPin(cierre) {
     }
     markersActivos.push(marker);
 
-document.getElementById("guardar").onclick = async () => {
+}
+
+// Handler para el botón guardar (asignado al final)
+function setupGuardarHandler() {
+    const guardarBtn = document.getElementById("guardar");
+    if (!guardarBtn) return;
+    
+    guardarBtn.onclick = async () => {
     const btn = document.getElementById("guardar");
     
     // Validación completa
@@ -250,9 +259,9 @@ document.getElementById("guardar").onclick = async () => {
     finally { 
         btn.disabled = false; 
     }
-};
+    };
+}
 
-// ... (Función actualizarBarrios y cargarDatos igual a la anterior) ...
 async function borrarPin(id) {
     if(!confirm("¿Borrar este cierre?")) return;
     try {
@@ -600,3 +609,10 @@ document.addEventListener('keydown', (e) => {
         }
     }
 });
+
+// Inicializar handlers después de que DOM esté listo
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupGuardarHandler);
+} else {
+    setupGuardarHandler();
+}
