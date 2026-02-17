@@ -61,15 +61,16 @@ if (tokenSeguro) {
                     ⚙️ PANEL ADMIN
                 </button>
             `;
-        }
-    }
-}
+        });
 
-// Botón Logout 
-const _btnLogout = document.getElementById('btn-logout');
-if (_btnLogout) {
-    _btnLogout.onclick = () => {
-        if(confirm("¿Cerrar sesión?")) {
+        // Añadir marcador al mapa y registrarlo en OMS para spiderfy en caso de solapamiento
+        marker.addTo(map);
+        if (oms && typeof oms.addMarker === 'function') {
+            try { oms.addMarker(marker); } catch (e) { console.warn('OMS addMarker falló', e); }
+        }
+        markersActivos.push(marker);
+
+    }
             localStorage.removeItem('token');
             window.location.href = `${API_URL}/login-page`;
         }
