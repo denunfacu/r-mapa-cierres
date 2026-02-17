@@ -74,11 +74,18 @@ const limitesVCP = [[-31.4800, -64.5800], [-31.3600, -64.4200]];
 const map = L.map('map', { maxBounds: limitesVCP, maxBoundsViscosity: 1.0 }).setView([-31.4241, -64.4978], 14);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-// OverlappingMarkerSpiderfier: maneja marcadores en la misma ubicación (opcional)
+// OverlappingMarkerSpiderfier: maneja marcadores en la misma ubicación
 let oms = null;
+let marcadoresPorUbicacion = {}; // Agrupar marcadores por lat,lng para contar
 try {
     if (typeof OverlappingMarkerSpiderfier !== 'undefined') {
-        oms = new OverlappingMarkerSpiderfier(map, { keepSpiderfied: true, nearbyDistance: 25 });
+        oms = new OverlappingMarkerSpiderfier(map, { 
+            keepSpiderfied: true, 
+            nearbyDistance: 60,  // Aumentado para mejor agrupamiento
+            circleFootSeparation: 40,
+            circleStartAngle: 0,
+            legWeight: 1.5
+        });
     } else {
         console.warn('OverlappingMarkerSpiderfier no cargado, funcionando sin spiderfy');
     }
@@ -131,6 +138,13 @@ function crearPin(cierre) {
 
     const marker = L.marker([cierre.lat, cierre.lng], { icon: icono });
     marker.bindTooltip(`<b>${formatPrice(cierre.precio_cierre)}</b>`, { direction: 'top', offset: [0, -30] });
+
+    // Agrupar por ubicación para contar
+    const key = `${cierre.lat},${cierre.lng}`;
+    if (!marcadoresPorUbicacion[key]) {
+        marcadoresPorUbicacion[key] = [];
+    }
+    marcadoresPorUbicacion[key].push(marker);
 
     marker.on('click', (e) => {
         L.DomEvent.stopPropagation(e);
@@ -334,6 +348,7 @@ function aplicarFiltrosEfectivos() {
         if (map.hasLayer(m)) map.removeLayer(m);
     });
     markersActivos = [];
+    marcadoresPorUbicacion = {}; // Limpiar agrupación
 
     const filtrados = todosLosCierres.filter(c => {
         return (v.tipo === 'todos' || c.tipo_propiedad === v.tipo) &&
