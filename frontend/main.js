@@ -276,6 +276,155 @@ function setupGuardarHandler() {
     };
 }
 
+// Nuevas funciones para agrupar marcadores por ubicación
+function crearPinesAgrupados(cierresFiltrados) {
+    // Agrupar cierres por ubicación exacta (lat,lng)
+    const grupos = {};
+    cierresFiltrados.forEach(cierre => {
+        if (!cierre.lat || !cierre.lng) return;
+        const key = `${cierre.lat},${cierre.lng}`;
+        if (!grupos[key]) {
+            grupos[key] = [];
+        }
+        grupos[key].push(cierre);
+    });
+
+    // Crear un marcador por grupo de ubicación
+    Object.entries(grupos).forEach(([key, cierres]) => {
+        const [lat, lng] = key.split(',').map(parseFloat);
+        
+        const iconosPorTipo = {
+            'departamento': iconEdificio,
+            'oficina': iconEdificio,
+            'cochera': iconCochera,
+            'casa': iconCasa,
+            'duplex': iconCasa
+        };
+        const icono = iconosPorTipo[cierres[0].tipo_propiedad] || iconCasa;
+
+        const marker = L.marker([lat, lng], { icon: icono });
+        
+        // Tooltip con cantidad de cierres
+        const precioToolip = cierres.length === 1 
+            ? `<b>${formatPrice(cierres[0].precio_cierre)}</b>` 
+            : `<b>${cierres.length} cierres</b>`;
+        marker.bindTooltip(precioToolip, { direction: 'top', offset: [0, -30] });
+
+        // Al clickear: si hay 1, mostrar sidebar; si hay >1, mostrar modal selector
+        marker.on('click', () => {
+            if (cierres.length === 1) {
+                mostrarDetallesCierre(cierres[0]);
+            } else {
+                abrirModalSelector(cierres);
+            }
+        });
+
+        marker.addTo(map);
+        if (oms && typeof oms.addMarker === 'function') {
+            try { oms.addMarker(marker); } catch (e) { console.warn('OMS addMarker falló', e); }
+        }
+        markersActivos.push(marker);
+    });
+}
+
+function mostrarDetallesCierre(cierre) {
+    sidebar.classList.add('active');
+    map.setView([cierre.lat, cierre.lng], 16, { animate: true });
+
+    const imgHtml = cierre.foto ? `<img src="${cierre.foto}" class="foto-portada" loading="lazy">` : '';
+    const siNo = (val) => (val == 1 || val == true || val === "true") 
+        ? '<span class="valor-si">SI</span>' 
+        : '<span class="valor-no">NO</span>';
+
+    const esMio = cierre.usuario_id === datosUsuario.id;
+    const btnBorrar = (datosUsuario.rol === 'admin' || esMio)
+        ? `<button onclick="borrarPin(${cierre.id})" class="btn-borrar-sidebar">ELIMINAR PUBLICACIÓN</button>` : '';
+
+    document.getElementById('detalle').innerHTML = `
+        ${imgHtml}
+        <div style="padding: 10px 0;">
+            <h3 style="margin:0; color:#333;">${cierre.direccion}</h3>
+            <p style="margin:5px 0; color:#666; font-size:14px;">${cierre.barrio}, ${cierre.localidad}</p>
+        </div>
+
+        <p class="precio-pub-sidebar">Publicación: ${formatPrice(cierre.precio_publicacion) || 'S/D'}</p>
+        <p class="precio-cierre-sidebar">Precio Cierre: ${formatPrice(cierre.precio_cierre)}</p>
+        
+        <div class="detalle-lista">
+            <div class="detalle-item"><b>Tipo:</b> <span>${(cierre.tipo_propiedad || 'S/D').toUpperCase()}</span></div>
+            <div class="detalle-item"><b>Dormitorios:</b> <span>${cierre.dormitorios || '0'}</span></div>
+            <div class="detalle-item"><b>Baños:</b> <span>${cierre.banios || '0'}</span></div>
+            <div class="detalle-item"><b>Cocheras:</b> <span>${cierre.cocheras || '0'}</span></div>
+            <div class="detalle-item"><b>Antigüedad:</b> <span>${cierre.antiguedad || '0'} años</span></div>
+            <div class="detalle-item"><b>M² Cubiertos:</b> <span>${cierre.m2_cubiertos || '0'} m²</span></div>
+            <div class="detalle-item"><b>M² Terreno:</b> <span>${cierre.m2_terreno || '0'} m²</span></div>
+            
+            <hr style="border:0; border-top:1px solid #eee; margin:10px 0;">
+            
+            <div class="detalle-item"><b>Es PH:</b> <span>${siNo(cierre.es_ph)}</span></div>
+            <div class="detalle-item"><b>Gas Natural:</b> <span>${siNo(cierre.gas)}</span></div>
+            <div class="detalle-item"><b>Pileta:</b> <span>${siNo(cierre.pileta)}</span></div>
+            <div class="detalle-item"><b>Amenities:</b> <span>${siNo(cierre.amenities)}</span></div>
+            <div class="detalle-item"><b>Apto Crédito:</b> <span>${siNo(cierre.credito)}</span></div>
+            <div class="detalle-item"><b>Cloacas:</b> <span>${siNo(cierre.cloacas)}</span></div>
+            <div class="detalle-item"><b>Pavimento:</b> <span>${siNo(cierre.pavimento)}</span></div>
+            
+            <div class="detalle-item" style="margin-top:10px;">
+                <b>Días en Mercado:</b> <span>${cierre.dias_mercado || 'S/D'}</span>
+            </div>
+            
+            <div style="margin-top:15px; padding:10px; background:#f9f9f9; border-radius:8px;">
+                <b style="font-size:13px; color:#444;">Observaciones:</b>
+                <p style="font-size:13px; color:#666; margin:5px 0;">${cierre.observaciones || 'Sin observaciones adicionales.'}</p>
+            </div>
+        </div>
+        ${btnBorrar}
+    `;
+}
+
+function abrirModalSelector(cierres) {
+    const modal = document.getElementById('modal-selector-cierres');
+    const titulo = document.getElementById('modal-selector-titulo');
+    const listado = document.getElementById('modal-selector-listado');
+
+    titulo.textContent = `${cierres[0].direccion} (${cierres.length} cierres)`;
+    listado.innerHTML = '';
+
+    cierres.forEach(cierre => {
+        const item = document.createElement('div');
+        item.className = 'modal-selector-item';
+        item.onclick = () => {
+            modal.style.display = 'none';
+            mostrarDetallesCierre(cierre);
+        };
+
+        const img = cierre.foto 
+            ? `<img src="${cierre.foto}" class="modal-selector-img" loading="lazy">` 
+            : `<div class="modal-selector-img" style="display:flex;align-items:center;justify-content:center;font-size:12px;color:#999;">Sin foto</div>`;
+
+        item.innerHTML = `
+            ${img}
+            <div class="modal-selector-info">
+                <div class="modal-selector-precio">${formatPrice(cierre.precio_cierre)}</div>
+                <div class="modal-selector-tipo">${(cierre.tipo_propiedad || 'S/D').toUpperCase()}</div>
+                <div class="modal-selector-detalles">${cierre.dormitorios || 0} dorm. | ${cierre.banios || 0} baños</div>
+            </div>
+        `;
+        listado.appendChild(item);
+    });
+
+    modal.style.display = 'flex';
+}
+
+function cerrarModalSelector() {
+    document.getElementById('modal-selector-cierres').style.display = 'none';
+}
+
+// Mantener función crearPin para compatibilidad (ahora no hace nada)
+function crearPin(cierre) {
+    // Función reemplazada por crearPinesAgrupados
+}
+
 async function borrarPin(id) {
     if(!confirm("¿Borrar este cierre?")) return;
     try {
@@ -370,8 +519,8 @@ function aplicarFiltrosEfectivos() {
                (!v.amenities || c.amenities == 1);
     });
 
-    // Crear pines para los cierres filtrados
-    filtrados.forEach(crearPin);
+    // Crear pines agrupados para los cierres filtrados
+    crearPinesAgrupados(filtrados);
     
     // Feedback al usuario
     console.log(`Se muestran ${filtrados.length} de ${todosLosCierres.length} propiedades`);
