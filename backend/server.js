@@ -338,22 +338,26 @@ app.post("/cierres", verificarToken, upload.single('foto'), async (req, res) => 
             const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${queryGeo}&limit=1`, 
                 { 
                     headers: { 
-                        'User-Agent': 'MapaCierresApp/1.0 (Cordoba-Argentina)'
-                    },
-                    timeout: 5000
+                        'User-Agent': 'MapaCierresApp/1.0 (Cordoba-Argentina)',
+                        'Accept': 'application/json'
+                    }
                 }
             );
             
-            if (response.ok) {
+            if (!response.ok) {
+                console.warn(`Nominatim error: ${response.status} ${response.statusText}`);
+            } else {
                 const geoData = await response.json();
-                if (geoData && geoData.length > 0) {
+                if (geoData && Array.isArray(geoData) && geoData.length > 0) {
                     lat = parseFloat(geoData[0].lat);
                     lng = parseFloat(geoData[0].lon);
+                    console.log(`Geocodificado exitosamente: ${d.direccion} -> [${lat}, ${lng}]`);
+                } else {
+                    console.warn(`Nominatim no encontró resultados para: ${d.direccion}, ${d.localidad}`);
                 }
             }
         } catch (geoError) {
-            console.warn('Error geocodificando dirección, usando coordenadas por defecto:', geoError);
-            // Continuar con coordenadas por defecto
+            console.error('Error en geocodificación:', geoError.message);
         }
 
         // Insertar en BD
