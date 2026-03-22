@@ -90,9 +90,12 @@ if (tokenSeguro) {
 
 }
 
-const iconCasa = L.icon({ iconUrl: 'icons/casa-verde.png', iconSize: [20, 20], iconAnchor: [16, 32] });
-const iconEdificio = L.icon({ iconUrl: 'icons/edificio-morado.png', iconSize: [32, 32], iconAnchor: [16, 32] });
-const iconCochera = L.icon({ iconUrl: 'icons/cochera.png', iconSize: [32, 32], iconAnchor: [16, 32] });
+const iconCasa = L.icon({ iconUrl: 'icons/casa.png', iconSize: [20, 20], iconAnchor: [16, 32] });
+const iconEdificio = L.icon({ iconUrl: 'icons/edificio.png', iconSize: [20, 20], iconAnchor: [16, 32] });
+const iconCochera = L.icon({ iconUrl: 'icons/cochera.png', iconSize: [20, 20], iconAnchor: [16, 32] });
+const iconHotel = L.icon({ iconUrl: 'icons/hotel.png', iconSize: [20, 20], iconAnchor: [16, 32] });
+const iconTerreno = L.icon({ iconUrl: 'icons/terreno.png', iconSize: [20, 20], iconAnchor: [16, 32] });
+const iconAgrupado = L.icon({ iconUrl: 'icons/varios.png', iconSize: [32, 32], iconAnchor: [16, 32] });
 
 const limitesVCP = [[-31.4800, -64.5800], [-31.3600, -64.4200]];
 const map = L.map('map', { maxBounds: limitesVCP, maxBoundsViscosity: 1.0 }).setView([-31.4241, -64.4978], 14);
@@ -296,14 +299,22 @@ function crearPinesAgrupados(cierresFiltrados) {
     Object.entries(grupos).forEach(([key, cierres]) => {
         const [lat, lng] = key.split(',').map(parseFloat);
         
-        const iconosPorTipo = {
-            'departamento': iconEdificio,
-            'oficina': iconEdificio,
-            'cochera': iconCochera,
-            'casa': iconCasa,
-            'duplex': iconCasa
-        };
-        const icono = iconosPorTipo[cierres[0].tipo_propiedad] || iconCasa;
+        let icono;
+        if (cierres.length > 1) {
+            // Icono específico para pines agrupados
+            icono = iconAgrupado;
+        } else {
+            const iconosPorTipo = {
+                'departamento': iconEdificio,
+                'oficina': iconEdificio,
+                'cochera': iconCochera,
+                'casa': iconCasa,
+                'duplex': iconCasa,
+                'hotel': iconHotel,
+                'terreno': iconTerreno
+            };
+            icono = iconosPorTipo[cierres[0].tipo_propiedad] || iconCasa;
+        }
 
         const marker = L.marker([lat, lng], { icon: icono });
         
