@@ -95,7 +95,7 @@ const iconEdificio = L.icon({ iconUrl: 'icons/edificio.png', iconSize: [20, 20],
 const iconCochera = L.icon({ iconUrl: 'icons/cochera.png', iconSize: [20, 20], iconAnchor: [16, 32] });
 const iconHotel = L.icon({ iconUrl: 'icons/hotel.png', iconSize: [20, 20], iconAnchor: [16, 32] });
 const iconTerreno = L.icon({ iconUrl: 'icons/terreno.png', iconSize: [20, 20], iconAnchor: [16, 32] });
-const iconAgrupado = L.icon({ iconUrl: 'icons/varios.png', iconSize: [32, 32], iconAnchor: [16, 32] });
+const iconAgrupado = L.icon({ iconUrl: 'icons/varios.png', iconSize: [20, 20], iconAnchor: [16, 32] });
 
 const limitesVCP = [[-31.4800, -64.5800], [-31.3600, -64.4200]];
 const map = L.map('map', { maxBounds: limitesVCP, maxBoundsViscosity: 1.0 }).setView([-31.4241, -64.4978], 14);
@@ -229,6 +229,13 @@ function setupGuardarHandler() {
     
     guardarBtn.onclick = async () => {
     const btn = document.getElementById("guardar");
+    
+    // Verificar token antes de proceder
+    if (!tokenSeguro) {
+        alert("❌ Sesión expirada. Por favor inicia sesión nuevamente.");
+        window.location.href = '/login-page';
+        return;
+    }
     
     // Validación completa
     if(!document.getElementById('direccion').value) return alert("Falta completar: DIRECCIÓN");
