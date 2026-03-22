@@ -118,8 +118,8 @@ if (_btnAbrir) _btnAbrir.onclick = () => {
     // Inicializar formateo de precios
     formatNumberInput(document.getElementById('precio_publicacion'));
     formatNumberInput(document.getElementById('precio_cierre'));
-    // Activar selección de ubicación en mapa
-    activarSeleccionUbicacion();
+    // Intentar geocodificar automáticamente si ya hay datos
+    setTimeout(() => geocodificarDireccion(), 500);
 };
 const _cancelarForm = document.getElementById('cancelar-form');
 if (_cancelarForm) _cancelarForm.onclick = () => {
@@ -127,105 +127,68 @@ if (_cancelarForm) _cancelarForm.onclick = () => {
     desactivarSeleccionUbicacion();
 };
 
-// Variables para seleccionar ubicación desde el mapa
-let seleccionandoUbicacion = false;
-let markerTemporal = null;
-let coordenadas = { lat: -31.4241, lng: -64.4978 };
-
-function activarSeleccionUbicacion() {
-    seleccionandoUbicacion = true;
-    map.on('click', selecionarPuntoEnMapa);
-    map.getContainer().style.cursor = 'crosshair';
-}
-
-function desactivarSeleccionUbicacion() {
-    seleccionandoUbicacion = false;
-    map.off('click', selecionarPuntoEnMapa);
-    map.getContainer().style.cursor = 'grab';
-    if (markerTemporal) {
-        map.removeLayer(markerTemporal);
-        markerTemporal = null;
-    }
-}
-
-function selecionarPuntoEnMapa(e) {
-    if (!seleccionandoUbicacion) return;
-    
-    coordenadas.lat = e.latlng.lat;
-    coordenadas.lng = e.latlng.lng;
-    
-    // Actualizar display de coordenadas
-    const display = document.getElementById('coords-display');
-    if (display) {
-        display.textContent = `Lat: ${coordenadas.lat.toFixed(4)} | Lng: ${coordenadas.lng.toFixed(4)}`;
-    }
-    
-    // Agregar marcador temporal en la ubicación seleccionada
-    if (markerTemporal) {
-        map.removeLayer(markerTemporal);
-    }
-    markerTemporal = L.marker([coordenadas.lat, coordenadas.lng], { icon: iconCasa }).addTo(map);
-}
-
 async function geocodificarDireccion() {
     const direccion = document.getElementById('direccion').value;
     const localidad = document.getElementById('localidad').value;
-    const statusDiv = document.getElementById('geocode-status');
     
-    if (!direccion || !localidad) {
-        if (statusDiv) statusDiv.textContent = '';
-        return;
-    }
+    if (!direccion || !localidad) return;
     
-    if (statusDiv) statusDiv.textContent = '🔍 Buscando ubicación...';
+    const userAgents = [
+        'MapaCierresApp/1.0 (Cordoba-Argentina)',
+        'Mozilla/5.0 (compatible; MapaCierresBot/1.0)',
+        'OpenStreetMap Nominatim/1.0',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    ];
     
-    try {
-        const query = encodeURIComponent(`${direccion}, ${localidad}, Cordoba, Argentina`);
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&countrycodes=AR&limit=1`, {
-            headers: {
-                'User-Agent': 'MapaCierresApp/1.0 (Cordoba-Argentina)',
-                'Accept': 'application/json'
-            }
-        });
-        
-        if (response.ok) {
-            const data = await response.json();
-            if (data && data.length > 0) {
-                coordenadas.lat = parseFloat(data[0].lat);
-                coordenadas.lng = parseFloat(data[0].lon);
-                
-                // Actualizar display
-                const display = document.getElementById('coords-display');
-                if (display) {
-                    display.textContent = `Lat: ${coordenadas.lat.toFixed(4)} | Lng: ${coordenadas.lng.toFixed(4)}`;
+    let encontrado = false;
+    
+    for (let i = 0; i < userAgents.length && !encontrado; i++) {
+        try {
+            const query = encodeURIComponent(`${direccion}, ${localidad}, Cordoba, Argentina`);
+            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&countrycodes=AR&limit=1`, {
+                headers: {
+                    'User-Agent': userAgents[i],
+                    'Accept': 'application/json',
+                    'Referer': 'https://mapa-cierres.com'
                 }
-                
-                // Mover marcador temporal
-                if (markerTemporal) {
-                    map.removeLayer(markerTemporal);
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data && data.length > 0) {
+                    coordenadas.lat = parseFloat(data[0].lat);
+                    coordenadas.lng = parseFloat(data[0].lon);
+                    
+                    // Actualizar display
+                    const display = document.getElementById('coords-display');
+                    if (display) {
+                        display.textContent = `Lat: ${coordenadas.lat.toFixed(4)} | Lng: ${coordenadas.lng.toFixed(4)}`;
+                    }
+                    
+                    // Mover marcador temporal
+                    if (markerTemporal) {
+                        map.removeLayer(markerTemporal);
+                    }
+                    markerTemporal = L.marker([coordenadas.lat, coordenadas.lng], { icon: iconCasa }).addTo(map);
+                    
+                    // Centrar mapa en la ubicación
+                    map.setView([coordenadas.lat, coordenadas.lng], 16);
+                    
+                    console.log(`Geocodificado automáticamente: ${direccion} -> [${coordenadas.lat}, ${coordenadas.lng}]`);
+                    encontrado = true;
                 }
-                markerTemporal = L.marker([coordenadas.lat, coordenadas.lng], { icon: iconCasa }).addTo(map);
-                
-                // Centrar mapa en la ubicación
-                map.setView([coordenadas.lat, coordenadas.lng], 16);
-                
-                if (statusDiv) statusDiv.textContent = '✅ Ubicación encontrada';
-                console.log(`Geocodificado automáticamente: ${direccion} -> [${coordenadas.lat}, ${coordenadas.lng}]`);
-            } else {
-                if (statusDiv) statusDiv.textContent = '❌ Dirección no encontrada';
+            } else if (response.status === 429) {
+                // Rate limit, esperar un poco
+                await new Promise(resolve => setTimeout(resolve, 2000));
             }
-        } else {
-            if (statusDiv) statusDiv.textContent = '❌ Error al buscar ubicación';
+        } catch (error) {
+            console.warn(`Error con User-Agent ${userAgents[i]}:`, error);
         }
-    } catch (error) {
-        console.warn('Error en geocodificación automática:', error);
-        if (statusDiv) statusDiv.textContent = '❌ Error de conexión';
     }
     
-    // Limpiar mensaje después de 3 segundos
-    setTimeout(() => {
-        if (statusDiv) statusDiv.textContent = '';
-    }, 3000);
+    if (!encontrado) {
+        console.warn(`No se pudo geocodificar: ${direccion}, ${localidad} - usando ubicación por defecto`);
+    }
 }
 const _cerrarDetalle = document.getElementById('cerrar-detalle');
 if (_cerrarDetalle) _cerrarDetalle.onclick = () => sidebar.classList.remove('active');

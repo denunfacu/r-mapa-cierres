@@ -340,11 +340,13 @@ app.post("/cierres", verificarToken, upload.single('foto'), async (req, res) => 
             console.log(`✅ Coordenadas del usuario: ${d.direccion} -> [${lat}, ${lng}]`);
             geocodificadoExitoso = true;
         } else {
-            // Intentar geocodificar con diferentes estrategias
+            // Intentar geocodificar con diferentes estrategias y User-Agents
             const userAgents = [
                 'MapaCierresApp/1.0 (Cordoba-Argentina)',
                 'Mozilla/5.0 (compatible; MapaCierresBot/1.0)',
-                'OpenStreetMap Nominatim/1.0'
+                'OpenStreetMap Nominatim/1.0',
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'curl/7.68.0'
             ];
             
             for (let i = 0; i < userAgents.length && !geocodificadoExitoso; i++) {
@@ -352,12 +354,13 @@ app.post("/cierres", verificarToken, upload.single('foto'), async (req, res) => 
                     console.log(`Intentando geocodificación con User-Agent: ${userAgents[i]}`);
                     
                     const response = await fetch(
-                        `https://nominatim.openstreetmap.org/search?format=json&q=${queryGeo}&countrycodes=AR&limit=1`,
+                        `https://nominatim.openstreetmap.org/search?format=json&q=${queryGeo}&countrycodes=AR&limit=1&addressdetails=1`,
                         { 
                             headers: { 
                                 'User-Agent': userAgents[i],
                                 'Accept': 'application/json',
-                                'Referer': 'https://mapa-cierres.com'
+                                'Referer': 'https://mapa-cierres.com',
+                                'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8'
                             }
                         }
                     );
@@ -373,13 +376,18 @@ app.post("/cierres", verificarToken, upload.single('foto'), async (req, res) => 
                         }
                     } else if (response.status === 429) {
                         console.warn(`⚠️ Nominatim: Límite de rate alcanzado (429) con ${userAgents[i]}`);
-                        // Esperar un poco antes del siguiente intento
-                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        // Esperar más tiempo antes del siguiente intento
+                        await new Promise(resolve => setTimeout(resolve, 3000));
                     } else {
                         console.warn(`⚠️ Nominatim: Error ${response.status} con ${userAgents[i]}`);
                     }
                 } catch (err) {
                     console.error(`❌ Error en geocodificación con ${userAgents[i]}:`, err.message);
+                }
+                
+                // Pequeño delay entre intentos
+                if (i < userAgents.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 500));
                 }
             }
             
