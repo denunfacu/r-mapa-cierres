@@ -42,13 +42,37 @@ var tokenSeguro = localStorage.getItem('token');
 var datosUsuario = { id: null, rol: 'user', permiso: 'ver' };
 let todosLosCierres = []; 
 
-if (tokenSeguro) {
+function forzarLogin() {
+    localStorage.removeItem('token');
+    window.location.href = '/login-page';
+}
+
+function verificarSesion() {
+    if (!tokenSeguro) {
+        forzarLogin();
+        return;
+    }
+
     try {
         const payload = JSON.parse(window.atob(tokenSeguro.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+        if (payload.exp && Math.floor(Date.now() / 1000) >= payload.exp) {
+            alert('Tu sesión expiró. Por favor ingresa de nuevo.');
+            forzarLogin();
+            return;
+        }
+
         datosUsuario.id = payload.id;
         datosUsuario.rol = payload.rol;
         datosUsuario.permiso = payload.permiso_nivel;
-    } catch (e) { console.error("Error decodificando sesión"); }
+    } catch (e) {
+        console.error('Error decodificando sesión', e);
+        forzarLogin();
+    }
+}
+
+verificarSesion();
+
+if (tokenSeguro) {
 
     if (datosUsuario.rol === 'admin') {
         const contenedor = document.getElementById('contenedor-admin');
@@ -755,4 +779,15 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', setupGuardarHandler);
 } else {
     setupGuardarHandler();
+}
+
+// Botón Cerrar Sesión
+const btnLogout = document.getElementById('btn-logout');
+if (btnLogout) {
+    btnLogout.addEventListener('click', () => {
+        localStorage.removeItem('token');
+        tokenSeguro = null;
+        alert('✅ Sesión cerrada. Redirigiendo a login...');
+        window.location.href = '/login-page';
+    });
 }
