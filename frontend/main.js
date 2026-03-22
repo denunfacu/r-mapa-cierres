@@ -295,24 +295,36 @@ function crearPin(cierre) {
 // Handler para el botón guardar (asignado al final)
 function setupGuardarHandler() {
     const guardarBtn = document.getElementById("guardar");
-    if (!guardarBtn) return;
-    
-    guardarBtn.onclick = async () => {
-    const btn = document.getElementById("guardar");
-    
-    // Verificar token antes de proceder
-    if (!tokenSeguro) {
-        alert("❌ Sesión expirada. Por favor inicia sesión nuevamente.");
-        window.location.href = '/login-page';
+    if (!guardarBtn) {
+        console.error("Botón guardar no encontrado");
         return;
     }
     
-    // Validación completa
-    if(!document.getElementById('direccion').value) return alert("Falta completar: DIRECCIÓN");
-    if(!document.getElementById('localidad').value) return alert("Falta completar: LOCALIDAD");
-    if(!document.getElementById('barrio').value) return alert("Falta completar: BARRIO");
-    if(!document.getElementById('precio_cierre').value) return alert("Falta completar: PRECIO CIERRE");
-    if(!document.getElementById('tipo_propiedad').value) return alert("Falta completar: TIPO DE PROPIEDAD");
+    console.log("Configurando handler para botón guardar");
+    
+    guardarBtn.onclick = async () => {
+        console.log("Botón guardar clickeado");
+        
+        const btn = document.getElementById("guardar");
+        
+        // Verificar token antes de proceder
+        if (!tokenSeguro) {
+            alert("❌ Sesión expirada. Por favor inicia sesión nuevamente.");
+            window.location.href = '/login-page';
+            return;
+        }
+        
+        console.log("Token válido, procediendo con validación");
+        
+        // Validación completa
+        if(!document.getElementById('direccion').value) return alert("Falta completar: DIRECCIÓN");
+        if(!document.getElementById('localidad').value) return alert("Falta completar: LOCALIDAD");
+        if(!document.getElementById('barrio').value) return alert("Falta completar: BARRIO");
+        if(!document.getElementById('precio_cierre').value) return alert("Falta completar: PRECIO CIERRE");
+        if(!document.getElementById('tipo_propiedad').value) return alert("Falta completar: TIPO DE PROPIEDAD");
+
+        console.log("Validación pasada, preparando FormData");
+        console.log("Coordenadas actuales:", coordenadas);
 
     const formData = new FormData();
     
@@ -341,6 +353,8 @@ function setupGuardarHandler() {
     if(foto) formData.append('foto', foto);
 
     btn.disabled = true;
+    console.log("Enviando petición POST a:", `${API_URL}/cierres`);
+    
     try {
         const res = await fetch(`${API_URL}/cierres`, {
             method: "POST",
@@ -348,27 +362,35 @@ function setupGuardarHandler() {
             body: formData
         });
         
+        console.log("Respuesta recibida, status:", res.status);
+        
         let responseData;
         const contentType = res.headers.get('content-type');
+        console.log("Content-Type:", contentType);
         
         try {
             if (contentType && contentType.includes('application/json')) {
                 responseData = await res.json();
+                console.log("Respuesta JSON:", responseData);
             } else {
                 responseData = { error: await res.text() };
+                console.log("Respuesta texto:", responseData.error);
             }
         } catch (parseError) {
+            console.error("Error parseando respuesta:", parseError);
             responseData = { error: `Error en respuesta del servidor (${res.status})` };
         }
         
         if (res.ok) { 
+            console.log("Guardado exitoso");
             alert("✅ Guardado exitosamente"); 
             location.reload(); 
         } else {
+            console.error("Error en guardado:", responseData);
             alert("❌ Error: " + (responseData.error || responseData.message || "No se pudo guardar"));
         }
     } catch (e) { 
-        console.error("Error:", e);
+        console.error("Error en fetch:", e);
         alert("❌ Error de conexión: " + e.message); 
     }
     finally { 
