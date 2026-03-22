@@ -90,13 +90,13 @@ if (tokenSeguro) {
 
 }
 
-const iconCasa = L.icon({ iconUrl: 'icons/casa.png', iconSize: [20, 20], iconAnchor: [16, 32] });
-const iconEdificio = L.icon({ iconUrl: 'icons/edificio.png', iconSize: [20, 20], iconAnchor: [16, 32] });
-const iconCochera = L.icon({ iconUrl: 'icons/cochera.png', iconSize: [20, 20], iconAnchor: [16, 32] });
-const iconHotel = L.icon({ iconUrl: 'icons/hotel.png', iconSize: [20, 20], iconAnchor: [16, 32] });
-const iconTerreno = L.icon({ iconUrl: 'icons/terreno.png', iconSize: [20, 20], iconAnchor: [16, 32] });
-const iconAgrupado = L.icon({ iconUrl: 'icons/varios.png', iconSize: [20, 20], iconAnchor: [16, 32] });
-const iconOtro = L.icon({ iconUrl: 'icons/otro.png', iconSize: [20, 20], iconAnchor: [16, 32] });
+const iconCasa = L.icon({ iconUrl: 'icons/casa.png', iconSize: [32, 32], iconAnchor: [16, 32] });
+const iconEdificio = L.icon({ iconUrl: 'icons/edificio.png', iconSize: [32, 32], iconAnchor: [16, 32] });
+const iconCochera = L.icon({ iconUrl: 'icons/cochera.png', iconSize: [32, 32], iconAnchor: [16, 32] });
+const iconHotel = L.icon({ iconUrl: 'icons/hotel.png', iconSize: [32, 32], iconAnchor: [16, 32] });
+const iconTerreno = L.icon({ iconUrl: 'icons/terreno.png', iconSize: [32, 32], iconAnchor: [16, 32] });
+const iconAgrupado = L.icon({ iconUrl: 'icons/varios.png', iconSize: [32, 32], iconAnchor: [16, 32] });
+const iconOtro = L.icon({ iconUrl: 'icons/otro.png', iconSize: [32, 32], iconAnchor: [16, 32] });
 
 const limitesVCP = [[-31.4800, -64.5800], [-31.3600, -64.4200]];
 const map = L.map('map', { maxBounds: limitesVCP, maxBoundsViscosity: 1.0 }).setView([-31.4241, -64.4978], 14);
