@@ -270,7 +270,7 @@ function setupGuardarHandler() {
     try {
         const res = await fetch(`${API_URL}/cierres`, {
             method: "POST",
-            headers: { "Authorization": tokenSeguro },
+            headers: { "authorization": tokenSeguro },
             body: formData
         });
         if (res.ok) { 
