@@ -274,14 +274,28 @@ function setupGuardarHandler() {
             headers: { "authorization": tokenSeguro },
             body: formData
         });
+        
+        let responseData;
+        const contentType = res.headers.get('content-type');
+        
+        try {
+            if (contentType && contentType.includes('application/json')) {
+                responseData = await res.json();
+            } else {
+                responseData = { error: await res.text() };
+            }
+        } catch (parseError) {
+            responseData = { error: `Error en respuesta del servidor (${res.status})` };
+        }
+        
         if (res.ok) { 
             alert("✅ Guardado exitosamente"); 
             location.reload(); 
         } else {
-            const error = await res.json();
-            alert("❌ Error: " + (error.error || "No se pudo guardar"));
+            alert("❌ Error: " + (responseData.error || responseData.message || "No se pudo guardar"));
         }
     } catch (e) { 
+        console.error("Error:", e);
         alert("❌ Error de conexión: " + e.message); 
     }
     finally { 
