@@ -329,35 +329,54 @@ app.post("/cierres", verificarToken, upload.single('foto'), async (req, res) => 
             fotoUrl = uploadResult.secure_url;
         }
 
-        // Geocodificar dirección
+        // Geocodificar dirección con reintentos
         const queryGeo = encodeURIComponent(`${d.direccion}, ${d.localidad}, Cordoba, Argentina`);
-        let lat = -31.4241;
-        let lng = -64.4978;
+        let lat = parseFloat(d.lat) || -31.4241;
+        let lng = parseFloat(d.lng) || -64.4978;
+        let geocodificadoExitoso = false;
         
-        try {
-            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${queryGeo}&limit=1`, 
-                { 
-                    headers: { 
-                        'User-Agent': 'MapaCierresApp/1.0 (Cordoba-Argentina)',
-                        'Accept': 'application/json'
+        // Si ya vienen coordenadas del frontend (usuario seleccionó en el mapa), usarlas directamente
+        if (d.lat && d.lng && parseFloat(d.lat) !== -31.4241 && parseFloat(d.lng) !== -64.4978) {
+            console.log(`✅ Coordenadas del usuario: ${d.direccion} -> [${lat}, ${lng}]`);
+            geocodificadoExitoso = true;
+        } else {
+            // Intentar geocodificar solo si no hay coordenadas válidas del usuario
+            const geocodificar = async () => {
+                try {
+                    const response = await fetch(
+                        `https://nominatim.openstreetmap.org/search?format=json&q=${queryGeo}&countrycodes=AR&limit=1`,
+                        { 
+                            headers: { 
+                                'User-Agent': 'MapaCierresApp/1.0 (Cordoba-Argentina)',
+                                'Accept': 'application/json'
+                            }
+                        }
+                    );
+                    
+                    if (response.ok) {
+                        const geoData = await response.json();
+                        if (Array.isArray(geoData) && geoData.length > 0) {
+                            lat = parseFloat(geoData[0].lat);
+                            lng = parseFloat(geoData[0].lon);
+                            console.log(`✅ Geocodificado: ${d.direccion} -> [${lat}, ${lng}]`);
+                            geocodificadoExitoso = true;
+                            return;
+                        }
+                    } else if (response.status === 429) {
+                        console.warn('⚠️ Nominatim: Límite de rate alcanzado (429)');
+                    } else {
+                        console.warn(`⚠️ Nominatim: Error ${response.status}`);
                     }
+                } catch (err) {
+                    console.error('❌ Error en geocodificación:', err.message);
                 }
-            );
+            };
             
-            if (!response.ok) {
-                console.warn(`Nominatim error: ${response.status} ${response.statusText}`);
-            } else {
-                const geoData = await response.json();
-                if (geoData && Array.isArray(geoData) && geoData.length > 0) {
-                    lat = parseFloat(geoData[0].lat);
-                    lng = parseFloat(geoData[0].lon);
-                    console.log(`Geocodificado exitosamente: ${d.direccion} -> [${lat}, ${lng}]`);
-                } else {
-                    console.warn(`Nominatim no encontró resultados para: ${d.direccion}, ${d.localidad}`);
-                }
+            await geocodificar();
+            
+            if (!geocodificadoExitoso) {
+                console.warn(`⚠️ Usando ubicación por defecto para: ${d.direccion}`);
             }
-        } catch (geoError) {
-            console.error('Error en geocodificación:', geoError.message);
         }
 
         // Insertar en BD

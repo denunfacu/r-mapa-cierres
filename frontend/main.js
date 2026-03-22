@@ -118,9 +118,54 @@ if (_btnAbrir) _btnAbrir.onclick = () => {
     // Inicializar formateo de precios
     formatNumberInput(document.getElementById('precio_publicacion'));
     formatNumberInput(document.getElementById('precio_cierre'));
+    // Activar selección de ubicación en mapa
+    activarSeleccionUbicacion();
 };
 const _cancelarForm = document.getElementById('cancelar-form');
-if (_cancelarForm) _cancelarForm.onclick = () => modalForm.style.display = 'none';
+if (_cancelarForm) _cancelarForm.onclick = () => {
+    modalForm.style.display = 'none';
+    desactivarSeleccionUbicacion();
+};
+
+// Variables para seleccionar ubicación desde el mapa
+let seleccionandoUbicacion = false;
+let markerTemporal = null;
+let coordenadas = { lat: -31.4241, lng: -64.4978 };
+
+function activarSeleccionUbicacion() {
+    seleccionandoUbicacion = true;
+    map.on('click', selecionarPuntoEnMapa);
+    map.getContainer().style.cursor = 'crosshair';
+}
+
+function desactivarSeleccionUbicacion() {
+    seleccionandoUbicacion = false;
+    map.off('click', selecionarPuntoEnMapa);
+    map.getContainer().style.cursor = 'grab';
+    if (markerTemporal) {
+        map.removeLayer(markerTemporal);
+        markerTemporal = null;
+    }
+}
+
+function selecionarPuntoEnMapa(e) {
+    if (!seleccionandoUbicacion) return;
+    
+    coordenadas.lat = e.latlng.lat;
+    coordenadas.lng = e.latlng.lng;
+    
+    // Actualizar display de coordenadas
+    const display = document.getElementById('coords-display');
+    if (display) {
+        display.textContent = `Lat: ${coordenadas.lat.toFixed(4)} | Lng: ${coordenadas.lng.toFixed(4)}`;
+    }
+    
+    // Agregar marcador temporal en la ubicación seleccionada
+    if (markerTemporal) {
+        map.removeLayer(markerTemporal);
+    }
+    markerTemporal = L.marker([coordenadas.lat, coordenadas.lng], { icon: iconCasa }).addTo(map);
+}
 const _cerrarDetalle = document.getElementById('cerrar-detalle');
 if (_cerrarDetalle) _cerrarDetalle.onclick = () => sidebar.classList.remove('active');
 
@@ -250,6 +295,10 @@ function setupGuardarHandler() {
     // Recolección de datos - usar valores limpios para precios
     const campos = ['direccion','barrio','localidad','tipo_propiedad','piso','disposicion','m2_cubiertos','m2_terreno','antiguedad','banios','cocheras','dormitorios','observaciones'];
     campos.forEach(c => formData.append(c, document.getElementById(c).value || ''));
+    
+    // Agregar coordenadas seleccionadas desde el mapa
+    formData.append('lat', coordenadas.lat);
+    formData.append('lng', coordenadas.lng);
     
     // Precios: usar los valores sin formatear si existen, sino el valor del input
     const precioPubli = document.getElementById('precio_publicacion_clean')?.value || document.getElementById('precio_publicacion').value || '';
