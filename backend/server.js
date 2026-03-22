@@ -331,12 +331,30 @@ app.post("/cierres", verificarToken, upload.single('foto'), async (req, res) => 
 
         // Geocodificar dirección
         const queryGeo = encodeURIComponent(`${d.direccion}, ${d.localidad}, Cordoba, Argentina`);
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${queryGeo}`, 
-            { headers: { 'User-Agent': 'App' } }
-        );
-        const geoData = await response.json();
-        const lat = geoData.length > 0 ? parseFloat(geoData[0].lat) : -31.4241;
-        const lng = geoData.length > 0 ? parseFloat(geoData[0].lon) : -64.4978;
+        let lat = -31.4241;
+        let lng = -64.4978;
+        
+        try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${queryGeo}&limit=1`, 
+                { 
+                    headers: { 
+                        'User-Agent': 'MapaCierresApp/1.0 (Cordoba-Argentina)'
+                    },
+                    timeout: 5000
+                }
+            );
+            
+            if (response.ok) {
+                const geoData = await response.json();
+                if (geoData && geoData.length > 0) {
+                    lat = parseFloat(geoData[0].lat);
+                    lng = parseFloat(geoData[0].lon);
+                }
+            }
+        } catch (geoError) {
+            console.warn('Error geocodificando dirección, usando coordenadas por defecto:', geoError);
+            // Continuar con coordenadas por defecto
+        }
 
         // Insertar en BD
         await pool.query(
