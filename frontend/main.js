@@ -166,6 +166,67 @@ function selecionarPuntoEnMapa(e) {
     }
     markerTemporal = L.marker([coordenadas.lat, coordenadas.lng], { icon: iconCasa }).addTo(map);
 }
+
+async function geocodificarDireccion() {
+    const direccion = document.getElementById('direccion').value;
+    const localidad = document.getElementById('localidad').value;
+    const statusDiv = document.getElementById('geocode-status');
+    
+    if (!direccion || !localidad) {
+        if (statusDiv) statusDiv.textContent = '';
+        return;
+    }
+    
+    if (statusDiv) statusDiv.textContent = '🔍 Buscando ubicación...';
+    
+    try {
+        const query = encodeURIComponent(`${direccion}, ${localidad}, Cordoba, Argentina`);
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&countrycodes=AR&limit=1`, {
+            headers: {
+                'User-Agent': 'MapaCierresApp/1.0 (Cordoba-Argentina)',
+                'Accept': 'application/json'
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data && data.length > 0) {
+                coordenadas.lat = parseFloat(data[0].lat);
+                coordenadas.lng = parseFloat(data[0].lon);
+                
+                // Actualizar display
+                const display = document.getElementById('coords-display');
+                if (display) {
+                    display.textContent = `Lat: ${coordenadas.lat.toFixed(4)} | Lng: ${coordenadas.lng.toFixed(4)}`;
+                }
+                
+                // Mover marcador temporal
+                if (markerTemporal) {
+                    map.removeLayer(markerTemporal);
+                }
+                markerTemporal = L.marker([coordenadas.lat, coordenadas.lng], { icon: iconCasa }).addTo(map);
+                
+                // Centrar mapa en la ubicación
+                map.setView([coordenadas.lat, coordenadas.lng], 16);
+                
+                if (statusDiv) statusDiv.textContent = '✅ Ubicación encontrada';
+                console.log(`Geocodificado automáticamente: ${direccion} -> [${coordenadas.lat}, ${coordenadas.lng}]`);
+            } else {
+                if (statusDiv) statusDiv.textContent = '❌ Dirección no encontrada';
+            }
+        } else {
+            if (statusDiv) statusDiv.textContent = '❌ Error al buscar ubicación';
+        }
+    } catch (error) {
+        console.warn('Error en geocodificación automática:', error);
+        if (statusDiv) statusDiv.textContent = '❌ Error de conexión';
+    }
+    
+    // Limpiar mensaje después de 3 segundos
+    setTimeout(() => {
+        if (statusDiv) statusDiv.textContent = '';
+    }, 3000);
+}
 const _cerrarDetalle = document.getElementById('cerrar-detalle');
 if (_cerrarDetalle) _cerrarDetalle.onclick = () => sidebar.classList.remove('active');
 
