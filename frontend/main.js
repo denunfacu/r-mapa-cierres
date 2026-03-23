@@ -103,6 +103,8 @@ const map = L.map('map', { maxBounds: limitesVCP, maxBoundsViscosity: 1.0 }).set
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
 // Variables globales para gestión de marcadores
+let coordenadas = { lat: null, lng: null }; // Solución: Definición de variables globales para coordenadas
+let markerTemporal = null; // Solución: Definición del pin temporal
 let marcadoresPorUbicacion = {}; // Agrupar marcadores por lat,lng
 let markersActivos = []; // Array de marcadores activos en el mapa
 const modalForm = document.getElementById('modal-fondo');
@@ -120,6 +122,10 @@ if (_btnAbrir) _btnAbrir.onclick = () => {
     formatNumberInput(document.getElementById('precio_cierre'));
     // Intentar geocodificar automáticamente si ya hay datos
     setTimeout(() => geocodificarDireccion(), 500);
+
+    // Solución: Disparar la búsqueda al terminar de escribir la dirección o cambiar localidad
+    document.getElementById('direccion').addEventListener('blur', geocodificarDireccion);
+    document.getElementById('localidad').addEventListener('change', geocodificarDireccion);
 };
 const _cancelarForm = document.getElementById('cancelar-form');
 if (_cancelarForm) _cancelarForm.onclick = () => {
@@ -322,6 +328,11 @@ function setupGuardarHandler() {
         if(!document.getElementById('barrio').value) return alert("Falta completar: BARRIO");
         if(!document.getElementById('precio_cierre').value) return alert("Falta completar: PRECIO CIERRE");
         if(!document.getElementById('tipo_propiedad').value) return alert("Falta completar: TIPO DE PROPIEDAD");
+
+        // Solución: Asegurarnos de que el mapa encontró la calle antes de enviar los datos
+        if (!coordenadas.lat || !coordenadas.lng) {
+            return alert("❌ No se ha detectado la ubicación en el mapa. Revisa la dirección para que se posicione correctamente.");
+        }
 
         console.log("Validación pasada, preparando FormData");
         console.log("Coordenadas actuales:", coordenadas);
