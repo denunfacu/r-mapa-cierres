@@ -139,62 +139,56 @@ async function geocodificarDireccion() {
     
     if (!direccion || !localidad) return;
     
-    const userAgents = [
-        'MapaCierresApp/1.0 (Cordoba-Argentina)',
-        'Mozilla/5.0 (compatible; MapaCierresBot/1.0)',
-        'OpenStreetMap Nominatim/1.0',
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    ];
+    // Usamos un User-Agent más descriptivo para evitar bloqueos de OSM
+    const customUserAgent = 'MapaCierresApp-v1.2-Contacto-TuEmail@gmail.com';
     
-    let encontrado = false;
-    
-    for (let i = 0; i < userAgents.length && !encontrado; i++) {
-        try {
-            const query = encodeURIComponent(`${direccion}, ${localidad}, Cordoba, Argentina`);
-            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&countrycodes=AR&limit=1`, {
-                headers: {
-                    'User-Agent': userAgents[i],
-                    'Accept': 'application/json',
-                    'Referer': 'https://mapa-cierres.com'
-                }
+    try {
+        const query = encodeURIComponent(`${direccion}, ${localidad}, Cordoba, Argentina`);
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&countrycodes=AR&limit=1`, {
+            headers: {
+                'User-Agent': customUserAgent,
+                'Accept': 'application/json'
+            }
+        });
+        
+        // Verificamos si la respuesta es realmente un JSON para evitar el error de tu captura
+        const contentType = response.headers.get("content-type");
+        if (!response.ok || !contentType || !contentType.includes("application/json")) {
+            throw new Error("Respuesta no válida de Nominatim");
+        }
+
+        const data = await response.json();
+        
+        if (data && data.length > 0) {
+            coordenadas.lat = parseFloat(data[0].lat);
+            coordenadas.lng = parseFloat(data[0].lon);
+            
+            if (markerTemporal) map.removeLayer(markerTemporal);
+            
+            // HACEMOS EL MARCADOR ARRASTRABLE (draggable: true)
+            markerTemporal = L.marker([coordenadas.lat, coordenadas.lng], { 
+                icon: iconCasa,
+                draggable: true 
+            }).addTo(map);
+
+            // Escuchar cuando el usuario termina de arrastrar el pin
+            markerTemporal.on('dragend', function(event) {
+                const position = event.target.getLatLng();
+                coordenadas.lat = position.lat;
+                coordenadas.lng = position.lng;
+                console.log("Ubicación ajustada manualmente:", coordenadas);
             });
             
-            if (response.ok) {
-                const data = await response.json();
-                if (data && data.length > 0) {
-                    coordenadas.lat = parseFloat(data[0].lat);
-                    coordenadas.lng = parseFloat(data[0].lon);
-                    
-                    // Actualizar display
-                    const display = document.getElementById('coords-display');
-                    if (display) {
-                        display.textContent = `Lat: ${coordenadas.lat.toFixed(4)} | Lng: ${coordenadas.lng.toFixed(4)}`;
-                    }
-                    
-                    // Mover marcador temporal
-                    if (markerTemporal) {
-                        map.removeLayer(markerTemporal);
-                    }
-                    markerTemporal = L.marker([coordenadas.lat, coordenadas.lng], { icon: iconCasa }).addTo(map);
-                    
-                    // Centrar mapa en la ubicación
-                    map.setView([coordenadas.lat, coordenadas.lng], 16);
-                    
-                    console.log(`Geocodificado automáticamente: ${direccion} -> [${coordenadas.lat}, ${coordenadas.lng}]`);
-                    encontrado = true;
-                }
-            } else if (response.status === 429) {
-                // Rate limit, esperar un poco
-                await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-        } catch (error) {
-            console.warn(`Error con User-Agent ${userAgents[i]}:`, error);
+            map.setView([coordenadas.lat, coordenadas.lng], 17);
+            
+            const display = document.getElementById('coords-display');
+            if (display) display.textContent = `Lat: ${coordenadas.lat.toFixed(4)} | Lng: ${coordenadas.lng.toFixed(4)}`;
         }
+    } catch (error) {
+        console.error("Error en geocodificación:", error);
+        // Si hay error, permitimos que el usuario coloque el pin manualmente haciendo clic en el mapa
     }
-    
-    if (!encontrado) {
-        console.warn(`No se pudo geocodificar: ${direccion}, ${localidad} - usando ubicación por defecto`);
-    }
+}
 }
 const _cerrarDetalle = document.getElementById('cerrar-detalle');
 if (_cerrarDetalle) _cerrarDetalle.onclick = () => sidebar.classList.remove('active');
